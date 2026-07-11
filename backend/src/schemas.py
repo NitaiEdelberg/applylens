@@ -54,3 +54,10 @@ class TailorResult(BaseModel):
     cover_letter: str = ""
     grounding: List[GroundingCheck] = []
     flagged_count: int = 0
+
+
+# ---- combined one-call analyze ----
+class AnalyzeResponse(BaseModel):
+    job: ExtractedJob
+    fit: FitResult
+    tailor: TailorResult

@@ -59,6 +59,7 @@ GROQ_API_KEY=... python evals/run_evals.py # grounding guardrail metrics
 | `POST /api/extract` | `{jd_text}` | structured requirements |
 | `POST /api/fit` | `{jd_text, cv_text}` | `overall_score`, matched/partial/missing, summary |
 | `POST /api/tailor` | `{jd_text, cv_text}` | `bullets`, `cover_letter`, `grounding[]`, `flagged_count` |
+| `POST /api/analyze` | `{jd_text, cv_text}` | `{job, fit, tailor}` — runs all three concurrently in one call |
 
 ## Roadmap
 

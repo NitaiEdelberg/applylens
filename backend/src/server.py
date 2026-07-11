@@ -1,11 +1,19 @@
 """ApplyLens API — JD extraction, CV fit-scoring, and grounded tailoring."""
+import asyncio
 import logging
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .llm import LLMError
-from .schemas import ExtractRequest, AnalyzeRequest, ExtractedJob, FitResult, TailorResult
+from .schemas import (
+    ExtractRequest,
+    AnalyzeRequest,
+    ExtractedJob,
+    FitResult,
+    TailorResult,
+    AnalyzeResponse,
+)
 from .services.extract import extract_job
 from .services.fit import score_fit
 from .services.tailor import tailor
@@ -44,6 +52,25 @@ async def api_tailor(req: AnalyzeRequest):
     _require(req.jd_text, "jd_text")
     _require(req.cv_text, "cv_text")
     return _guard(await _safe(tailor, req.jd_text, req.cv_text))
+
+
+@app.post("/api/analyze", response_model=AnalyzeResponse)
+async def api_analyze(req: AnalyzeRequest):
+    """Run extraction, fit-scoring, and tailoring concurrently in one call."""
+    _require(req.jd_text, "jd_text")
+    _require(req.cv_text, "cv_text")
+    job, fit, tailored = await _safe(
+        _gather_analyze, req.jd_text, req.cv_text
+    )
+    return AnalyzeResponse(job=job, fit=fit, tailor=tailored)
+
+
+async def _gather_analyze(jd_text: str, cv_text: str):
+    return await asyncio.gather(
+        extract_job(jd_text),
+        score_fit(jd_text, cv_text),
+        tailor(jd_text, cv_text),
+    )
 
 
 # ---- helpers ----

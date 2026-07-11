@@ -19,3 +19,8 @@ def test_extract_requires_jd():
 def test_fit_requires_both_fields():
     r = client.post("/api/fit", json={"jd_text": "Backend engineer", "cv_text": ""})
     assert r.status_code == 400
+
+
+def test_analyze_requires_both_fields():
+    r = client.post("/api/analyze", json={"jd_text": "Backend engineer", "cv_text": " "})
+    assert r.status_code == 400
