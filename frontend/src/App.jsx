@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { analyze } from './api.js'
+import GuardrailPanel from './components/GuardrailPanel.jsx'
 
 const SAMPLE_JD = `Senior Backend Engineer — Payments
 
@@ -87,47 +88,6 @@ function FitCard({ fit }) {
         <span className="kv__label">Missing</span>
         <Chips items={fit.missing} />
       </div>
-    </div>
-  )
-}
-
-function TailorCard({ tailor }) {
-  const verified = tailor.bullets.length - tailor.flagged_count
-  return (
-    <div className="card">
-      <h3 className="card__title">
-        Tailored bullets{' '}
-        <span className="badge badge--success">{verified} verified</span>
-        {tailor.flagged_count > 0 && (
-          <span className="badge badge--danger" style={{ marginLeft: 'var(--sp-2)' }}>
-            {tailor.flagged_count} flagged
-          </span>
-        )}
-      </h3>
-      <ul className="bullets">
-        {tailor.bullets.map((b, i) => {
-          const g = tailor.grounding[i]
-          const ok = !g || g.supported
-          return (
-            <li className={`bullet${ok ? '' : ' bullet--flagged'}`} key={i}>
-              {b}
-              {g && (
-                <div className="bullet__meta">
-                  {ok
-                    ? g.evidence || 'Verified against your CV'
-                    : g.issue || 'Not supported by your CV'}
-                </div>
-              )}
-            </li>
-          )
-        })}
-      </ul>
-      {tailor.cover_letter && (
-        <div className="kv" style={{ marginTop: 'var(--sp-4)', marginBottom: 0 }}>
-          <span className="kv__label">Cover letter</span>
-          <pre className="cover-letter">{tailor.cover_letter}</pre>
-        </div>
-      )}
     </div>
   )
 }
@@ -237,9 +197,9 @@ export default function App() {
         <section className="panel" aria-label="Results">
           {result ? (
             <>
+              <GuardrailPanel tailor={result.tailor} />
               <JobCard job={result.job} />
               <FitCard fit={result.fit} />
-              <TailorCard tailor={result.tailor} />
             </>
           ) : (
             <EmptyState />

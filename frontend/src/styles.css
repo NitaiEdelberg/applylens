@@ -416,3 +416,250 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
+
+/* ============================================================
+   T3 — Grounding guardrail (hero panel)
+   ============================================================ */
+.guardrail {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 100% at 0% 0%, rgba(109, 94, 252, 0.08), transparent 60%),
+    var(--surface);
+}
+
+.guardrail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-3);
+}
+
+.guardrail__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-2);
+  font-size: 16px;
+}
+
+.guardrail__shield {
+  font-size: 18px;
+}
+
+.guardrail__summary {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.guardrail__summary strong {
+  color: var(--text);
+}
+
+.guardrail__dot {
+  color: var(--border);
+}
+
+.guardrail__count {
+  font-weight: 600;
+}
+
+.guardrail__count--ok {
+  color: var(--success);
+}
+
+.guardrail__count--flag {
+  color: var(--danger);
+}
+
+.guardrail__pct {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.1;
+}
+
+.guardrail__pctnum {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--success);
+}
+
+.guardrail__pctlabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+/* ---- progress meter ---- */
+.meter {
+  height: 8px;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-bottom: var(--sp-6);
+}
+
+.meter__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--success), #4ee08c);
+  transition: width 500ms ease;
+}
+
+/* ---- bullet cards ---- */
+.gcards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.gcard {
+  padding: var(--sp-4);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--success);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--transition), background var(--transition),
+    opacity var(--transition), transform var(--transition);
+}
+
+.gcard--flagged {
+  border-left-color: var(--danger);
+  background: rgba(240, 89, 107, 0.05);
+  opacity: 0.9;
+}
+
+.gcard__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+
+.gcard__badge {
+  white-space: nowrap;
+}
+
+.gcard__exclude {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.gcard__exclude input {
+  accent-color: var(--accent);
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+}
+
+.gcard__text {
+  margin: 0 0 var(--sp-3);
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.gcard--flagged .gcard__text {
+  color: var(--text-dim);
+}
+
+.gcard__detail {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  padding-left: var(--sp-3);
+  border-left: 2px solid var(--border);
+}
+
+.gcard__detail--flag {
+  color: #f4a1ab;
+  border-left-color: var(--danger);
+}
+
+.gcard__detail-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+
+/* ---- footer / copy ---- */
+.guardrail__footer {
+  margin-top: var(--sp-6);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.btn--sm {
+  padding: var(--sp-2) var(--sp-4);
+  font-size: 13px;
+}
+
+/* ---- collapsible cover letter ---- */
+.cl {
+  margin-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+  padding-top: var(--sp-4);
+}
+
+.cl__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cl__chevron {
+  font-size: 10px;
+  color: var(--text-dim);
+  transition: transform var(--transition);
+}
+
+.cl__chevron--open {
+  transform: rotate(90deg);
+}
+
+.cl__hint {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.cl .cover-letter {
+  margin-top: var(--sp-3);
+}
