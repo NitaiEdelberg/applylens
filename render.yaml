@@ -1,0 +1,16 @@
+# Render Blueprint for the ApplyLens backend (FastAPI + Groq).
+# Deploy: Render Dashboard -> New -> Blueprint -> pick this repo.
+# Set GROQ_API_KEY in the dashboard after the service is created.
+services:
+  - type: web
+    name: applylens-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: ./start.sh
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false                       # set this yourself (secret)
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile

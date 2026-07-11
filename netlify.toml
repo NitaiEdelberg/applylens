@@ -1,0 +1,7 @@
+# Netlify config for the ApplyLens frontend (React + Vite).
+# Set VITE_API_URL (your deployed backend URL) in Netlify -> Site settings ->
+# Environment variables, then deploy. Vite bakes it at build time.
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"
