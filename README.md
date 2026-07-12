@@ -68,10 +68,11 @@ GROQ_API_KEY=... python evals/run_evals.py # grounding guardrail metrics
 
 ## Roadmap
 
-- Application tracker (Kanban: applied → interview → offer)
+- A screenshot/GIF of the guardrail hero in this README
+- Grow the eval set beyond n=17 for a more robust accuracy number
 - Embedding-based retrieval over CV bullets (pgvector) for larger CVs
-- Persist analyses (Postgres) and a per-provider fallback for the LLM
-- Deploy: backend on Render, frontend on Netlify
+- Server-side persistence (Postgres) + a per-provider LLM fallback
+- Re-generate a tailored bullet on demand instead of only flagging it
 
 ## Development team (subagents)
 
