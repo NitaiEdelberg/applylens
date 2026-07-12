@@ -28,7 +28,9 @@ async def main():
     # tp/fp/fn are for the "fabrication caught" positive class (supported == False)
     tp = fp = fn = correct = 0
 
-    for row in rows:
+    for idx, row in enumerate(rows):
+        if idx:
+            await asyncio.sleep(2.2)  # stay under Groq's 30 req/min free-tier limit
         [check] = await check_grounding(row["cv"], [row["statement"]])
         predicted_supported = check["supported"]
         expected_supported = row["expected_supported"]
