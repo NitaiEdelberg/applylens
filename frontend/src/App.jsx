@@ -1,11 +1,43 @@
 import { useEffect, useRef, useState } from 'react'
-import { analyze, checkHealth, parseResume } from './api.js'
+import {
+  analyze,
+  checkHealth,
+  parseResume,
+  cloudListApps,
+  cloudSaveApp,
+  cloudUpdateStatus,
+  cloudDeleteApp,
+} from './api.js'
 import GuardrailPanel from './components/GuardrailPanel.jsx'
 import FitGauge from './components/FitGauge.jsx'
 import SkillCoverage from './components/SkillCoverage.jsx'
 import Tracker from './components/Tracker.jsx'
 import TrustPanel, { TrustBadge } from './components/TrustPanel.jsx'
+import AuthPanel from './components/AuthPanel.jsx'
+import Footer from './components/Footer.jsx'
 import { loadApps, saveApp, updateStatus, deleteApp } from './tracker.js'
+
+// Auth token + email persist in localStorage. Accounts are OPTIONAL: when a
+// token is present the Tracker syncs via the API (cross-device); when absent it
+// uses the anonymous localStorage tracker exactly as before.
+const TOKEN_KEY = 'applylens.auth.token'
+const EMAIL_KEY = 'applylens.auth.email'
+
+// Cloud tracker records carry `payload` (the saved analysis); the localStorage
+// tracker + Tracker.jsx expect it under `result`. Normalize so the UI is
+// identical regardless of source (Tracker.onOpen reads `.result`).
+function normalizeCloudApp(a) {
+  return {
+    id: a.id,
+    title: a.title,
+    company: a.company || '',
+    status: a.status,
+    score: a.score,
+    flagged: a.flagged || 0,
+    savedAt: a.savedAt,
+    result: a.payload,
+  }
+}
 
 const SAMPLE_JD = `Senior Backend Engineer — Payments
 
@@ -121,11 +153,22 @@ export default function App() {
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef(null)
 
-  // Tracker state (persisted in localStorage via tracker.js).
+  // Auth state. Token/email are read once from localStorage; the tracker data
+  // source (cloud vs. localStorage) switches on `token`.
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || '')
+  const [email, setEmail] = useState(() => localStorage.getItem(EMAIL_KEY) || '')
+  const [authOpen, setAuthOpen] = useState(false)
+
+  // Tracker state. Anonymous → localStorage (tracker.js); signed-in → cloud API.
   const [view, setView] = useState('analyze')
-  const [apps, setApps] = useState(loadApps)
+  const [apps, setApps] = useState(() =>
+    localStorage.getItem(TOKEN_KEY) ? [] : loadApps(),
+  )
   const [company, setCompany] = useState('')
   const [justSaved, setJustSaved] = useState(false)
+  const [trackerError, setTrackerError] = useState('')
+  // Count of local apps we can offer to import on first login (0 = no offer).
+  const [importOffer, setImportOffer] = useState(0)
 
   // Ping /health on load so the warm/cold dot reflects reality before the first
   // analyze. A sleeping / unreachable server resolves to 'cold' (never throws).
@@ -138,6 +181,84 @@ export default function App() {
       alive = false
     }
   }, [])
+
+  // Load the tracker from the right source whenever auth changes: cloud when
+  // signed in, localStorage when anonymous. A failed/expired token degrades to
+  // an empty cloud list with a friendly message — never a crash.
+  useEffect(() => {
+    let alive = true
+    if (token) {
+      cloudListApps(token)
+        .then((list) => {
+          if (!alive) return
+          setApps(list.map(normalizeCloudApp))
+          setTrackerError('')
+        })
+        .catch((e) => {
+          if (!alive) return
+          setApps([])
+          setTrackerError(String(e.message || e))
+        })
+    } else {
+      setApps(loadApps())
+    }
+    return () => {
+      alive = false
+    }
+  }, [token])
+
+  async function refreshCloud() {
+    try {
+      const list = await cloudListApps(token)
+      setApps(list.map(normalizeCloudApp))
+      setTrackerError('')
+    } catch (e) {
+      setTrackerError(String(e.message || e))
+    }
+  }
+
+  function onAuthed({ token: tok, email: em }) {
+    localStorage.setItem(TOKEN_KEY, tok)
+    localStorage.setItem(EMAIL_KEY, em || '')
+    setToken(tok)
+    setEmail(em || '')
+    setAuthOpen(false)
+    setView('tracker')
+    // Offer a one-time import of any anonymous localStorage apps.
+    const local = loadApps()
+    setImportOffer(local.length)
+  }
+
+  function onSignOut() {
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(EMAIL_KEY)
+    setToken('')
+    setEmail('')
+    setImportOffer(0)
+    setTrackerError('')
+    // The token effect will reload the anonymous localStorage apps.
+  }
+
+  // One-time: copy anonymous localStorage apps into the signed-in account so
+  // nobody loses their existing tracker. Local records are left intact.
+  async function onImportLocal() {
+    const local = loadApps()
+    try {
+      for (const a of local) {
+        await cloudSaveApp(token, {
+          title: a.title,
+          company: a.company,
+          score: a.score,
+          flagged: a.flagged,
+          payload: a.result,
+        })
+      }
+      setImportOffer(0)
+      await refreshCloud()
+    } catch (e) {
+      setTrackerError(String(e.message || e))
+    }
+  }
 
   async function onAnalyze() {
     setError('')
@@ -202,21 +323,52 @@ export default function App() {
     setCv(SAMPLE_CV)
   }
 
-  function onSave() {
+  async function onSave() {
     if (!result) return
     const title = (result.job && result.job.title) || 'Untitled role'
-    setApps(saveApp({ title, company, result }))
+    if (token) {
+      const score = result.fit ? result.fit.overall_score : null
+      const flagged = result.tailor ? result.tailor.flagged_count : 0
+      try {
+        await cloudSaveApp(token, { title, company, score, flagged, payload: result })
+        await refreshCloud()
+      } catch (e) {
+        setTrackerError(String(e.message || e))
+        return
+      }
+    } else {
+      setApps(saveApp({ title, company, result }))
+    }
     setCompany('')
     setJustSaved(true)
     setTimeout(() => setJustSaved(false), 1800)
   }
 
-  function onStatusChange(id, status) {
-    setApps(updateStatus(id, status))
+  async function onStatusChange(id, status) {
+    if (token) {
+      setApps((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)))
+      try {
+        await cloudUpdateStatus(token, id, status)
+      } catch (e) {
+        setTrackerError(String(e.message || e))
+        refreshCloud() // reconcile UI with the server on failure
+      }
+    } else {
+      setApps(updateStatus(id, status))
+    }
   }
 
-  function onDelete(id) {
-    setApps(deleteApp(id))
+  async function onDelete(id) {
+    if (token) {
+      try {
+        await cloudDeleteApp(token, id)
+        setApps((prev) => prev.filter((a) => a.id !== id))
+      } catch (e) {
+        setTrackerError(String(e.message || e))
+      }
+    } else {
+      setApps(deleteApp(id))
+    }
   }
 
   // Re-open a saved analysis with no network/LLM call.
@@ -243,8 +395,28 @@ export default function App() {
         <div className="header__slot">
           <TrustBadge />
           <StatusDot status={serverStatus} />
+          {token ? (
+            <div className="auth">
+              <span className="auth__email" title={email}>{email}</span>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={onSignOut}>
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={() => setAuthOpen(true)}
+            >
+              Sign in to sync
+            </button>
+          )}
         </div>
       </header>
+
+      {authOpen && (
+        <AuthPanel onClose={() => setAuthOpen(false)} onAuthed={onAuthed} />
+      )}
 
       <nav className="tabs" aria-label="Views">
         <button
@@ -390,6 +562,40 @@ export default function App() {
       ) : (
         <main className="main main--single">
           <section className="panel" aria-label="Saved applications">
+            {token ? (
+              <p className="tracker__source">
+                ☁️ Synced to your account — available on any device.
+              </p>
+            ) : (
+              <p className="tracker__source">
+                🔒 Saved on this device only.{' '}
+                <button type="button" className="linkbtn" onClick={() => setAuthOpen(true)}>
+                  Sign in to sync across devices
+                </button>
+                .
+              </p>
+            )}
+            {importOffer > 0 && (
+              <div className="alert alert--info importbar" role="status">
+                <span>
+                  Import {importOffer} application{importOffer === 1 ? '' : 's'} from this
+                  device into your account?
+                </span>
+                <div className="importbar__actions">
+                  <button type="button" className="btn btn--primary btn--sm" onClick={onImportLocal}>
+                    Import
+                  </button>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => setImportOffer(0)}>
+                    Not now
+                  </button>
+                </div>
+              </div>
+            )}
+            {trackerError && (
+              <div className="alert alert--error" role="alert">
+                {trackerError}
+              </div>
+            )}
             <Tracker
               apps={apps}
               onStatusChange={onStatusChange}
@@ -399,6 +605,7 @@ export default function App() {
           </section>
         </main>
       )}
+      <Footer />
     </div>
   )
 }

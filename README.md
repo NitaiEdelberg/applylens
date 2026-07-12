@@ -32,7 +32,7 @@ evals/run_evals.py     grounding guardrail → accuracy + fabrication precision/
 
 ## Tech stack
 
-**Backend:** Python · FastAPI · httpx · Groq (`llama-3.3-70b-versatile`) · scikit-learn (deterministic TF-IDF skill-match signal)
+**Backend:** Python · FastAPI · httpx · Groq (`llama-3.3-70b-versatile`) · scikit-learn (deterministic TF-IDF skill-match signal) · SQLAlchemy (accounts + cloud tracker; SQLite locally, Postgres in prod) · passlib/bcrypt + PyJWT (auth)
 **Frontend:** React + Vite
 **Evals:** labeled JSONL dataset + a runnable scorer
 
@@ -56,9 +56,24 @@ npm run dev                   # http://localhost:5173 (proxies /api to :8000)
 
 **Tests & evals**
 ```bash
-cd backend && pytest                       # smoke tests (no key needed)
+cd backend && pytest                       # smoke + auth/tracker tests (no key/DB needed)
 GROQ_API_KEY=... python evals/run_evals.py # grounding guardrail metrics
 ```
+
+### Configuration (env vars)
+
+| Var | Default | Purpose |
+|---|---|---|
+| `GROQ_API_KEY` | — | LLM key (required for analyze/tailor; tests don't need it) |
+| `DATABASE_URL` | `sqlite:///./applylens.db` | Accounts + cloud tracker DB. Unset = local SQLite (no credential). In prod set to the **Supabase session-pooler URI**. `postgres://` is auto-normalized to `postgresql://`. |
+| `JWT_SECRET` | dev fallback | Signs auth tokens. Set a long random value in production. |
+
+### Keeping the free-tier DB awake
+
+Supabase pauses a free project after ~7 days idle. `.github/workflows/keepalive.yml`
+is a scheduled GitHub Action that pings `GET /api/keepalive` every 3 days.
+**The repo owner must enable GitHub Actions** for it to run (and optionally set a
+`BACKEND_URL` repo variable to override the default deployed URL).
 
 ## API
 
@@ -70,6 +85,23 @@ GROQ_API_KEY=... python evals/run_evals.py # grounding guardrail metrics
 | `POST /api/tailor` | `{jd_text, cv_text}` | `bullets`, `cover_letter`, `grounding[]`, `flagged_count`, `cover_grounding[]`, `cover_flagged_count` |
 | `POST /api/analyze` | `{jd_text, cv_text}` | `{job, fit, tailor, skill_match}` — runs extraction/fit/tailoring concurrently, then adds a deterministic (non-LLM) TF-IDF `skill_match` keyword-coverage signal |
 | `POST /api/regenerate-bullet` | `{jd_text, cv_text, bullet, issue}` | `{bullet, grounding}` — self-correcting loop: regenerate one flagged bullet conditioned on its failure reason, then independently re-verify it |
+| `POST /api/auth/register` | `{email, password}` | `{token, email}` — creates an account (bcrypt-hashed password) and returns a JWT |
+| `POST /api/auth/login` | `{email, password}` | `{token, email}` — returns a JWT |
+| `GET /api/tracker` | — _(Bearer token)_ | this user's saved applications, newest first |
+| `POST /api/tracker` | `{title, company?, status?, score?, flagged?, payload?}` _(Bearer)_ | creates a tracked application for the current user |
+| `PATCH /api/tracker/{id}` | `{status}` _(Bearer)_ | updates status; 404 if not yours |
+| `DELETE /api/tracker/{id}` | — _(Bearer)_ | deletes; 404 if not yours |
+| `GET /api/keepalive` | — | `{ok:true}` — trivial `SELECT 1`; pinged by a cron to keep a free-tier DB awake |
+
+### Optional accounts + cloud tracker
+
+Accounts are **optional**. Anonymous users keep the browser-local `localStorage`
+tracker exactly as before; signing in swaps the tracker's data source to a
+per-user, JWT-protected API so applications sync across devices (and a one-time
+offer imports existing local applications on first login). Persistence uses
+**SQLAlchemy**, so it runs on **SQLite locally with no credential** and
+**Postgres in production** (e.g. Supabase). Tracker rows are strictly
+user-scoped — a user can only ever see or modify their own.
 
 ### Self-correcting guardrail loop
 

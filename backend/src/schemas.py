@@ -1,5 +1,5 @@
 """Request/response models for the ApplyLens API."""
-from typing import List, Optional
+from typing import Any, List, Optional
 from pydantic import BaseModel
 
 
@@ -93,3 +93,40 @@ class AnalyzeResponse(BaseModel):
     tailor: TailorResult
     # Deterministic TF-IDF keyword-coverage second opinion (no LLM call).
     skill_match: SkillMatch = SkillMatch()
+
+
+# ---- optional accounts (Circle 3) ----
+class AuthRequest(BaseModel):
+    email: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    token: str
+    email: str
+
+
+# ---- per-user cloud tracker ----
+class TrackerCreate(BaseModel):
+    title: str = "Untitled role"
+    company: str = ""
+    status: str = "applied"
+    score: Optional[int] = None
+    flagged: int = 0
+    # The full saved analysis blob (same shape the localStorage tracker keeps).
+    payload: Optional[Any] = None
+
+
+class TrackerStatusUpdate(BaseModel):
+    status: str
+
+
+class TrackedApp(BaseModel):
+    id: int
+    title: str
+    company: str
+    status: str
+    score: Optional[int] = None
+    flagged: int = 0
+    payload: Optional[Any] = None
+    savedAt: Optional[str] = None

@@ -5,6 +5,9 @@ __pycache__/
 .env
 .pytest_cache/
 
+# local SQLite dev DB (default when DATABASE_URL is unset)
+*.db
+
 # node
 node_modules/
 dist/

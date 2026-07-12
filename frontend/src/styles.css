@@ -1482,3 +1482,171 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Optional accounts + cloud tracker (Circle 3) ---------- */
+.auth {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.auth__email {
+  font-size: 13px;
+  color: var(--text-dim);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Inline text button that reads as a link — reused in modal + tracker notes. */
+.linkbtn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-2);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.linkbtn:hover {
+  color: var(--accent);
+}
+
+.alert--info {
+  background: rgba(109, 94, 252, 0.1);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.tracker__source {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0 0 var(--sp-4);
+}
+
+.importbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
+}
+
+.importbar__actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+/* ---------- Auth modal ---------- */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+}
+
+.modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.modal__card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--sp-6);
+}
+
+.modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+
+.modal__title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.modal__close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  padding: var(--sp-1);
+}
+
+.modal__close:hover {
+  color: var(--text);
+}
+
+.modal__sub {
+  margin: 0 0 var(--sp-4);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.authform {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.authform .btn {
+  margin-top: var(--sp-3);
+}
+
+.modal__switch {
+  margin: var(--sp-4) 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* ---------- Footer + privacy ---------- */
+.footer {
+  margin-top: auto;
+  padding: var(--sp-6);
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.footer__line {
+  margin: 0 0 var(--sp-1);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.footer__meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+
+.privacy p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  margin: 0 0 var(--sp-3);
+}
+
+.privacy__note {
+  color: var(--text-dim) !important;
+  font-size: 12px !important;
+}

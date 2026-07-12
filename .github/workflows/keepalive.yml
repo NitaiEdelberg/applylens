@@ -1,0 +1,27 @@
+# Keeps the free-tier database awake. Supabase pauses a free project after ~7
+# days of inactivity; this pings the backend's /api/keepalive (which runs a
+# trivial SELECT 1) every 3 days so the DB never idles into a pause.
+#
+# NOTE FOR THE CEO: GitHub disables scheduled Actions on a repo with no recent
+# activity, and Actions may need enabling under Settings → Actions. You must
+# ENABLE ACTIONS for this to run. Optionally set a repo variable BACKEND_URL to
+# override the default deployed URL below.
+name: keepalive
+
+on:
+  schedule:
+    - cron: "0 6 */3 * *" # every 3 days at 06:00 UTC
+  workflow_dispatch: {}      # allow manual runs from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping keepalive endpoint
+        run: |
+          BASE="${{ vars.BACKEND_URL || 'https://applylens-backend.onrender.com' }}"
+          echo "Pinging $BASE/api/keepalive"
+          curl -fsS --max-time 90 "$BASE/api/keepalive" || {
+            echo "keepalive ping failed (backend may be cold — this is non-fatal)"
+            exit 0
+          }

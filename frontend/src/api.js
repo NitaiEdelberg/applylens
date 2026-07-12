@@ -146,3 +146,62 @@ export async function parseResume(file) {
 // the UI can show a "waking up the server" state.
 export const analyze = (jd_text, cv_text, opts = {}) =>
   postWithRetry('/api/analyze', { jd_text, cv_text }, opts)
+
+// ---- optional accounts + per-user cloud tracker (Circle 3) ----
+// These are for signed-in users only; anonymous users never call them and keep
+// using the localStorage tracker. All requests carry a Bearer token and surface
+// friendly errors. Kept separate from the analyze retry path — auth/tracker
+// calls are quick DB ops, not cold-start-prone LLM round-trips.
+
+// A single JSON request with a friendly error. `token` is optional; when given
+// it's sent as a Bearer header. Throws Error(detail) on non-2xx.
+async function jsonRequest(path, { method = 'GET', body, token } = {}) {
+  const headers = {}
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  let res
+  try {
+    res = await fetchWithTimeout(
+      `${BASE}${path}`,
+      {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      },
+      ANALYZE_TIMEOUT,
+    )
+  } catch (err) {
+    throw new Error(
+      isTransient(err)
+        ? "We couldn't reach the server. It may be waking up on the free tier — try again in a moment."
+        : 'Something went wrong. Please try again.',
+    )
+  }
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data.detail || `Request failed (${res.status})`)
+  }
+  return data
+}
+
+// Auth. Both resolve to { token, email }.
+export const register = (email, password) =>
+  jsonRequest('/api/auth/register', { method: 'POST', body: { email, password } })
+export const login = (email, password) =>
+  jsonRequest('/api/auth/login', { method: 'POST', body: { email, password } })
+
+// Cloud tracker CRUD (all require a token; all user-scoped server-side).
+export const cloudListApps = (token) => jsonRequest('/api/tracker', { token })
+
+export const cloudSaveApp = (token, { title, company, score, flagged, payload }) =>
+  jsonRequest('/api/tracker', {
+    method: 'POST',
+    token,
+    body: { title, company, score, flagged, payload },
+  })
+
+export const cloudUpdateStatus = (token, id, status) =>
+  jsonRequest(`/api/tracker/${id}`, { method: 'PATCH', token, body: { status } })
+
+export const cloudDeleteApp = (token, id) =>
+  jsonRequest(`/api/tracker/${id}`, { method: 'DELETE', token })

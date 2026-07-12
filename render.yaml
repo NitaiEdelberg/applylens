@@ -14,3 +14,9 @@ services:
         sync: false                       # set this yourself (secret)
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
+      # Optional accounts + cloud tracker (Circle 3). Leave DATABASE_URL unset to
+      # use local SQLite; set it to the Supabase SESSION POOLER URI for prod.
+      - key: DATABASE_URL
+        sync: false                       # set to Supabase session-pooler URI (secret)
+      - key: JWT_SECRET
+        generateValue: true               # Render generates a strong random secret
