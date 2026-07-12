@@ -1,6 +1,8 @@
 """Generate CV-grounded resume bullets + a cover letter, then verify grounding."""
+import asyncio
+
 from ..llm import chat_json
-from .grounding import check_grounding
+from .grounding import check_grounding, check_cover_letter
 
 SYSTEM = (
     "You tailor a candidate's real experience to a target job. "
@@ -30,8 +32,12 @@ Return JSON: {{"bullets": [str], "cover_letter": str}}"""
     bullets = data.get("bullets", []) or []
     cover_letter = data.get("cover_letter", "")
 
-    # Guardrail: fact-check every generated bullet against the CV.
-    grounding = await check_grounding(cv_text, bullets)
+    # Guardrail: fact-check every generated bullet AND the cover letter's
+    # factual self-claims against the CV — concurrently.
+    grounding, cover = await asyncio.gather(
+        check_grounding(cv_text, bullets),
+        check_cover_letter(cv_text, cover_letter),
+    )
     flagged = [g for g in grounding if not g["supported"]]
 
     return {
@@ -39,6 +45,8 @@ Return JSON: {{"bullets": [str], "cover_letter": str}}"""
         "cover_letter": cover_letter,
         "grounding": grounding,
         "flagged_count": len(flagged),
+        "cover_grounding": cover["claims"],
+        "cover_flagged_count": cover["flagged_count"],
     }
 
 

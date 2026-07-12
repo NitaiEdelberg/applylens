@@ -14,9 +14,38 @@ function verdictFor(grounding, i) {
   }
 }
 
-function CoverLetter({ text }) {
+// A cover letter is boilerplate + a few checkable claims. We ground ONLY the
+// extracted factual self-claims (never the prose), so pleasantries like
+// "I'm excited to apply" are never flagged.
+function CoverVerdict({ grounding }) {
+  if (!grounding) return null
+  const total = grounding.length
+  const flagged = grounding.filter((c) => !c.supported)
+  if (total === 0) {
+    return (
+      <span className="cl__verdict cl__verdict--neutral" title="No verifiable experience claims to check">
+        No verifiable claims
+      </span>
+    )
+  }
+  if (flagged.length === 0) {
+    return (
+      <span className="cl__verdict cl__verdict--ok">
+        ✓ {total} experience {total === 1 ? 'claim' : 'claims'} verified
+      </span>
+    )
+  }
+  return (
+    <span className="cl__verdict cl__verdict--flag">
+      ⚠ {flagged.length} of {total} {total === 1 ? 'claim' : 'claims'} not supported
+    </span>
+  )
+}
+
+function CoverLetter({ text, grounding }) {
   const [open, setOpen] = useState(false)
   if (!text) return null
+  const flagged = (grounding || []).filter((c) => !c.supported)
   return (
     <div className={`cl${open ? ' cl--open' : ''}`}>
       <button
@@ -29,9 +58,24 @@ function CoverLetter({ text }) {
           ▶
         </span>
         Cover letter
+        <CoverVerdict grounding={grounding} />
         <span className="cl__hint">{open ? 'Hide' : 'Show'}</span>
       </button>
       {open && <pre className="cover-letter">{text}</pre>}
+      {open && flagged.length > 0 && (
+        <ul className="cl__flags">
+          {flagged.map((c, i) => (
+            <li className="cl__flag" key={i}>
+              <span className="badge badge--danger cl__flag-badge">⚠ Not supported</span>
+              <p className="cl__flag-claim">{c.statement}</p>
+              <div className="gcard__detail gcard__detail--flag">
+                <span className="gcard__detail-label">Reason</span>
+                {c.issue || 'Not supported by your CV'}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -233,7 +277,7 @@ export default function GuardrailPanel({ tailor, jdText, cvText }) {
         </button>
       </div>
 
-      <CoverLetter text={tailor.cover_letter} />
+      <CoverLetter text={tailor.cover_letter} grounding={tailor.cover_grounding} />
     </div>
   )
 }

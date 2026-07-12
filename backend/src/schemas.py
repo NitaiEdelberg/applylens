@@ -54,6 +54,10 @@ class TailorResult(BaseModel):
     cover_letter: str = ""
     grounding: List[GroundingCheck] = []
     flagged_count: int = 0
+    # Cover-letter guardrail: grounding verdicts for ONLY the letter's extracted
+    # factual self-claims (GroundingCheck.statement holds the claim text).
+    cover_grounding: List[GroundingCheck] = []
+    cover_flagged_count: int = 0
 
 
 # ---- self-correcting "Fix this bullet" loop ----
