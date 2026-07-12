@@ -5,6 +5,7 @@ Postgres in production (set DATABASE_URL to the Supabase session-pooler URI).
 Kept deliberately simple: synchronous SQLAlchemy with `def` FastAPI endpoints,
 which FastAPI runs in a threadpool alongside the existing async LLM routes.
 """
+import logging
 import os
 from datetime import datetime
 
@@ -88,9 +89,36 @@ class TrackedApplication(Base):
     user = relationship("User", back_populates="applications")
 
 
-def init_db() -> None:
-    """Create tables if they don't exist. Safe to call repeatedly."""
-    Base.metadata.create_all(bind=engine)
+def init_db() -> bool:
+    """Create tables if they don't exist. Never raises: a DB that's unreachable
+    at startup (bad URL, paused Supabase, network) must NOT crash the whole API —
+    the anonymous + LLM features don't need the DB. Returns True if the DB is
+    reachable and tables are ready, False otherwise (accounts/tracker will then
+    return a clean 503 until the DB is reachable).
+    """
+    try:
+        Base.metadata.create_all(bind=engine)
+        return True
+    except Exception as exc:  # connection refused, auth, SSL, IPv6-only host, ...
+        logging.warning(
+            "Database unavailable at startup — accounts/tracker disabled until it is "
+            "reachable (check DATABASE_URL uses the Supabase SESSION POOLER): %s",
+            exc,
+        )
+        return False
+
+
+# Reachability flag, refreshed on startup. SQLite (local/tests) always succeeds.
+DB_READY = init_db()
+
+
+def db_available() -> bool:
+    """Best-effort liveness re-check so a DB that comes up after boot starts working."""
+    global DB_READY
+    if DB_READY:
+        return True
+    DB_READY = init_db()
+    return DB_READY
 
 
 def get_session():
@@ -100,8 +128,3 @@ def get_session():
         yield db
     finally:
         db.close()
-
-
-# Create tables at import so tables exist regardless of how the app is started
-# (uvicorn startup event, or a bare TestClient that doesn't run lifespan events).
-init_db()
