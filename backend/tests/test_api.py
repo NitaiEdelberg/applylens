@@ -4,6 +4,7 @@ import io
 from docx import Document
 from fastapi.testclient import TestClient
 from src.server import app
+from src.services.skillmatch import skill_match
 
 client = TestClient(app)
 
@@ -91,3 +92,38 @@ def test_parse_resume_corrupt_pdf_is_400_not_500():
         files={"file": ("broken.pdf", b"not really a pdf", "application/pdf")},
     )
     assert r.status_code == 400
+
+
+# ---- deterministic skill-match signal (no LLM) ----
+def test_skill_match_covers_present_flags_missing():
+    result = skill_match(
+        ["Python", "Kubernetes"],
+        "Python developer with FastAPI",
+    )
+    covered = {c["requirement"] for c in result["covered"]}
+    assert "Python" in covered
+    assert "Kubernetes" in result["missing"]
+    assert result["coverage_score"] == 50
+    assert result["method"] == "tf-idf cosine"
+    # covered scores are rounded similarities in [0, 1]
+    for c in result["covered"]:
+        assert 0.0 <= c["score"] <= 1.0
+
+
+def test_skill_match_is_deterministic():
+    reqs = ["Python", "PostgreSQL", "Kafka"]
+    cv = "Backend engineer using Python and PostgreSQL"
+    assert skill_match(reqs, cv) == skill_match(reqs, cv)
+
+
+def test_skill_match_empty_inputs_do_not_crash():
+    assert skill_match([], "some cv text") == {
+        "coverage_score": 0,
+        "covered": [],
+        "missing": [],
+        "method": "tf-idf cosine",
+    }
+    empty_cv = skill_match(["Python"], "")
+    assert empty_cv["coverage_score"] == 0
+    assert empty_cv["covered"] == []
+    assert empty_cv["missing"] == ["Python"]

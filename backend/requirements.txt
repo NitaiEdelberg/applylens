@@ -6,3 +6,7 @@ pydantic>=2
 python-multipart
 pypdf
 python-docx
+# Deterministic, CPU-only skill-coverage signal (TF-IDF + cosine). 1.3.2 keeps
+# prebuilt wheels for Python 3.8-3.12, so it installs on the local venv and the
+# 3.11 Render box alike — no torch/transformers, ~150MB RSS, fits free tier.
+scikit-learn==1.3.2

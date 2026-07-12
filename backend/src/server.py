@@ -20,6 +20,7 @@ from .schemas import (
 from .services.extract import extract_job
 from .services.fit import score_fit
 from .services.tailor import tailor, regenerate_bullet
+from .services.skillmatch import skill_match
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -115,7 +116,11 @@ async def api_analyze(req: AnalyzeRequest):
     job, fit, tailored = await _safe(
         _gather_analyze, req.jd_text, req.cv_text
     )
-    return AnalyzeResponse(job=job, fit=fit, tailor=tailored)
+    # Deterministic, CPU-only second opinion: TF-IDF keyword coverage of the
+    # extracted requirements by the CV. No LLM call, so no extra latency.
+    requirements = list(job.get("must_haves", [])) + list(job.get("nice_to_haves", []))
+    match = skill_match(requirements, req.cv_text)
+    return AnalyzeResponse(job=job, fit=fit, tailor=tailored, skill_match=match)
 
 
 async def _gather_analyze(jd_text: str, cv_text: str):

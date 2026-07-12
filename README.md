@@ -7,6 +7,7 @@ An AI copilot for the job hunt. Paste a job description and your CV, and ApplyLe
 3. **Tailors** resume bullets + a cover letter, **grounded** in your real CV
 4. **Guards against fabrication** — a grounding check flags any generated claim your CV doesn't support
 5. **Grounds the cover letter too** — it extracts only the letter's factual claims about your background and checks those against your CV (boilerplate like greetings and "I'm excited to apply" is never flagged)
+6. **Adds a deterministic ML second opinion** — a CPU-only scikit-learn TF-IDF + cosine "keyword coverage" signal scores which extracted requirements the CV covers vs. misses, independent of (and complementing) the LLM's semantic fit score
 
 ![ApplyLens — the grounding guardrail verifying each tailored bullet against the CV, with a measured-accuracy trust badge](docs/screenshot.png)
 
@@ -31,7 +32,7 @@ evals/run_evals.py     grounding guardrail → accuracy + fabrication precision/
 
 ## Tech stack
 
-**Backend:** Python · FastAPI · httpx · Groq (`llama-3.3-70b-versatile`)
+**Backend:** Python · FastAPI · httpx · Groq (`llama-3.3-70b-versatile`) · scikit-learn (deterministic TF-IDF skill-match signal)
 **Frontend:** React + Vite
 **Evals:** labeled JSONL dataset + a runnable scorer
 
@@ -67,7 +68,7 @@ GROQ_API_KEY=... python evals/run_evals.py # grounding guardrail metrics
 | `POST /api/extract` | `{jd_text}` | structured requirements |
 | `POST /api/fit` | `{jd_text, cv_text}` | `overall_score`, matched/partial/missing, summary |
 | `POST /api/tailor` | `{jd_text, cv_text}` | `bullets`, `cover_letter`, `grounding[]`, `flagged_count`, `cover_grounding[]`, `cover_flagged_count` |
-| `POST /api/analyze` | `{jd_text, cv_text}` | `{job, fit, tailor}` — runs all three concurrently in one call |
+| `POST /api/analyze` | `{jd_text, cv_text}` | `{job, fit, tailor, skill_match}` — runs extraction/fit/tailoring concurrently, then adds a deterministic (non-LLM) TF-IDF `skill_match` keyword-coverage signal |
 | `POST /api/regenerate-bullet` | `{jd_text, cv_text, bullet, issue}` | `{bullet, grounding}` — self-correcting loop: regenerate one flagged bullet conditioned on its failure reason, then independently re-verify it |
 
 ### Self-correcting guardrail loop

@@ -73,8 +73,23 @@ class RegenerateBulletResponse(BaseModel):
     grounding: GroundingCheck
 
 
+# ---- deterministic (non-LLM) skill-coverage signal ----
+class CoveredReq(BaseModel):
+    requirement: str
+    score: float = 0.0
+
+
+class SkillMatch(BaseModel):
+    coverage_score: int = 0
+    covered: List[CoveredReq] = []
+    missing: List[str] = []
+    method: str = "tf-idf cosine"
+
+
 # ---- combined one-call analyze ----
 class AnalyzeResponse(BaseModel):
     job: ExtractedJob
     fit: FitResult
     tailor: TailorResult
+    # Deterministic TF-IDF keyword-coverage second opinion (no LLM call).
+    skill_match: SkillMatch = SkillMatch()

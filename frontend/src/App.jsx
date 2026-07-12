@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { analyze, checkHealth, parseResume } from './api.js'
 import GuardrailPanel from './components/GuardrailPanel.jsx'
 import FitGauge from './components/FitGauge.jsx'
+import SkillCoverage from './components/SkillCoverage.jsx'
 import Tracker from './components/Tracker.jsx'
 import TrustPanel, { TrustBadge } from './components/TrustPanel.jsx'
 import { loadApps, saveApp, updateStatus, deleteApp } from './tracker.js'
@@ -363,6 +364,7 @@ export default function App() {
                 <GuardrailPanel tailor={result.tailor} jdText={analyzedJd} cvText={analyzedCv} />
                 <TrustPanel />
                 <FitGauge fit={result.fit} />
+                <SkillCoverage skillMatch={result.skill_match} />
                 <JobCard job={result.job} />
                 <div className="card savebar">
                   <div className="field savebar__field">
