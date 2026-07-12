@@ -3,6 +3,7 @@ import { analyze, checkHealth } from './api.js'
 import GuardrailPanel from './components/GuardrailPanel.jsx'
 import FitGauge from './components/FitGauge.jsx'
 import Tracker from './components/Tracker.jsx'
+import TrustPanel, { TrustBadge } from './components/TrustPanel.jsx'
 import { loadApps, saveApp, updateStatus, deleteApp } from './tracker.js'
 
 const SAMPLE_JD = `Senior Backend Engineer — Payments
@@ -191,6 +192,7 @@ export default function App() {
           </p>
         </div>
         <div className="header__slot">
+          <TrustBadge />
           <StatusDot status={serverStatus} />
         </div>
       </header>
@@ -277,6 +279,7 @@ export default function App() {
             {result ? (
               <>
                 <GuardrailPanel tailor={result.tailor} />
+                <TrustPanel />
                 <FitGauge fit={result.fit} />
                 <JobCard job={result.job} />
                 <div className="card savebar">

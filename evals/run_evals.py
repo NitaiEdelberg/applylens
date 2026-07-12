@@ -9,6 +9,7 @@ import asyncio
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 # make backend importable
@@ -46,9 +47,29 @@ async def main():
     n = len(rows)
     precision = tp / (tp + fp) if (tp + fp) else 0.0
     recall = tp / (tp + fn) if (tp + fn) else 0.0
+    accuracy = correct / n if n else 0.0
     print("\n--- grounding guardrail ---")
-    print(f"accuracy:  {correct}/{n} = {correct / n:.0%}")
+    print(f"accuracy:  {correct}/{n} = {accuracy:.0%}")
     print(f"fabrication precision: {precision:.0%}  recall: {recall:.0%}")
+
+    # Emit a machine-readable summary the frontend can import (T7 trust panel).
+    results = {
+        "accuracy": round(accuracy, 4),
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
+        "n": n,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    payload = json.dumps(results, indent=2) + "\n"
+    out = Path(__file__).with_name("results.json")
+    out.write_text(payload)
+    print(f"wrote {out}")
+
+    # Also bundle a copy the frontend imports at build time (T7 trust panel).
+    fe = Path(__file__).resolve().parents[1] / "frontend" / "src" / "eval-results.json"
+    if fe.parent.exists():
+        fe.write_text(payload)
+        print(f"wrote {fe}")
 
 
 if __name__ == "__main__":
