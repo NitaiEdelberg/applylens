@@ -1,6 +1,9 @@
-import { useState } from 'react'
-import { analyze } from './api.js'
+import { useEffect, useState } from 'react'
+import { analyze, checkHealth } from './api.js'
 import GuardrailPanel from './components/GuardrailPanel.jsx'
+import FitGauge from './components/FitGauge.jsx'
+import Tracker from './components/Tracker.jsx'
+import { loadApps, saveApp, updateStatus, deleteApp } from './tracker.js'
 
 const SAMPLE_JD = `Senior Backend Engineer — Payments
 
@@ -28,8 +31,6 @@ const SAMPLE_CV = `Backend engineer with 6 years of experience building and oper
 - Led migration of a monolith to event-driven microservices
 
 Skills: Python, FastAPI, PostgreSQL, RabbitMQ, Docker, AWS, REST`
-
-// --- modular result renderers (T3/T4 will upgrade these) ---
 
 function Chips({ items, empty = 'None' }) {
   if (!items || items.length === 0) {
@@ -67,31 +68,6 @@ function JobCard({ job }) {
   )
 }
 
-function FitCard({ fit }) {
-  return (
-    <div className="card">
-      <h3 className="card__title">Fit score</h3>
-      <div style={{ marginBottom: 'var(--sp-4)' }}>
-        <span className="score">{fit.overall_score}</span>
-        <span className="score__unit"> / 100</span>
-      </div>
-      {fit.summary && <p className="card__subtitle">{fit.summary}</p>}
-      <div className="kv">
-        <span className="kv__label">Matched</span>
-        <Chips items={fit.matched.map((m) => m.requirement)} />
-      </div>
-      <div className="kv">
-        <span className="kv__label">Partial</span>
-        <Chips items={fit.partial.map((p) => p.requirement)} />
-      </div>
-      <div className="kv" style={{ marginBottom: 0 }}>
-        <span className="kv__label">Missing</span>
-        <Chips items={fit.missing} />
-      </div>
-    </div>
-  )
-}
-
 function EmptyState() {
   return (
     <div className="empty">
@@ -105,29 +81,102 @@ function EmptyState() {
   )
 }
 
+// Small warm/cold indicator for the server. `status` is one of
+// 'unknown' | 'warm' | 'cold' | 'waking'.
+function StatusDot({ status }) {
+  const label = {
+    unknown: 'Checking server…',
+    warm: 'Server ready',
+    cold: 'Server asleep',
+    waking: 'Waking server…',
+  }[status]
+  return (
+    <span className={`status status--${status}`} title={label}>
+      <span className="status__dot" aria-hidden="true" />
+      <span className="status__text">{label}</span>
+    </span>
+  )
+}
+
 export default function App() {
   const [jd, setJd] = useState('')
   const [cv, setCv] = useState('')
   const [loading, setLoading] = useState(false)
+  const [waking, setWaking] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const [serverStatus, setServerStatus] = useState('unknown')
+
+  // Tracker state (persisted in localStorage via tracker.js).
+  const [view, setView] = useState('analyze')
+  const [apps, setApps] = useState(loadApps)
+  const [company, setCompany] = useState('')
+  const [justSaved, setJustSaved] = useState(false)
+
+  // Ping /health on load so the warm/cold dot reflects reality before the first
+  // analyze. A sleeping / unreachable server resolves to 'cold' (never throws).
+  useEffect(() => {
+    let alive = true
+    checkHealth().then((ok) => {
+      if (alive) setServerStatus(ok ? 'warm' : 'cold')
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   async function onAnalyze() {
     setError('')
+    setWaking(false)
+    setJustSaved(false)
     setLoading(true)
     try {
-      const data = await analyze(jd, cv)
+      const data = await analyze(jd, cv, {
+        // Fires on the first transient failure — the server is likely cold.
+        onRetry: () => {
+          setWaking(true)
+          setServerStatus('waking')
+        },
+      })
       setResult(data)
+      setServerStatus('warm')
     } catch (e) {
+      // api.js always throws a human-readable message here.
       setError(String(e.message || e))
+      setServerStatus('cold')
     } finally {
       setLoading(false)
+      setWaking(false)
     }
   }
 
   function loadExample() {
     setJd(SAMPLE_JD)
     setCv(SAMPLE_CV)
+  }
+
+  function onSave() {
+    if (!result) return
+    const title = (result.job && result.job.title) || 'Untitled role'
+    setApps(saveApp({ title, company, result }))
+    setCompany('')
+    setJustSaved(true)
+    setTimeout(() => setJustSaved(false), 1800)
+  }
+
+  function onStatusChange(id, status) {
+    setApps(updateStatus(id, status))
+  }
+
+  function onDelete(id) {
+    setApps(deleteApp(id))
+  }
+
+  // Re-open a saved analysis with no network/LLM call.
+  function onOpen(app) {
+    setResult(app.result)
+    setError('')
+    setView('analyze')
   }
 
   const canAnalyze = jd.trim() && cv.trim() && !loading
@@ -141,71 +190,128 @@ export default function App() {
             Tailor your CV to any job — with a guardrail that never lets it lie.
           </p>
         </div>
-        <div className="header__slot" aria-hidden="true">
-          {/* trust badge slot (T7) */}
+        <div className="header__slot">
+          <StatusDot status={serverStatus} />
         </div>
       </header>
 
-      <main className="main">
-        <section className="panel" aria-label="Inputs">
-          <div className="card">
-            <div className="field">
-              <label className="field__label" htmlFor="jd">Job description</label>
-              <textarea
-                id="jd"
-                className="textarea"
-                value={jd}
-                onChange={(e) => setJd(e.target.value)}
-                placeholder="Paste the job posting…"
-              />
-            </div>
-            <div className="field">
-              <label className="field__label" htmlFor="cv">Your CV</label>
-              <textarea
-                id="cv"
-                className="textarea"
-                value={cv}
-                onChange={(e) => setCv(e.target.value)}
-                placeholder="Paste your CV / experience…"
-              />
-            </div>
-            <div className="actions">
-              <button
-                className="btn btn--primary"
-                disabled={!canAnalyze}
-                onClick={onAnalyze}
-              >
-                {loading && <span className="spinner" aria-hidden="true" />}
-                {loading ? 'Analyzing…' : 'Analyze'}
-              </button>
-              <button
-                className="btn btn--ghost"
-                disabled={loading}
-                onClick={loadExample}
-              >
-                Load example
-              </button>
-            </div>
-            {error && (
-              <div className="alert alert--error" role="alert" style={{ marginTop: 'var(--sp-4)' }}>
-                {error}
-              </div>
-            )}
-          </div>
-        </section>
+      <nav className="tabs" aria-label="Views">
+        <button
+          type="button"
+          className={`tab${view === 'analyze' ? ' tab--active' : ''}`}
+          onClick={() => setView('analyze')}
+        >
+          Analyze
+        </button>
+        <button
+          type="button"
+          className={`tab${view === 'tracker' ? ' tab--active' : ''}`}
+          onClick={() => setView('tracker')}
+        >
+          Tracker{apps.length ? ` (${apps.length})` : ''}
+        </button>
+      </nav>
 
-        <section className="panel" aria-label="Results">
-          {result ? (
-            <>
-              <GuardrailPanel tailor={result.tailor} />
-              <JobCard job={result.job} />
-              <FitCard fit={result.fit} />
-            </>
-          ) : (
-            <EmptyState />
-          )}
-        </section>
-      </main>
+      {view === 'analyze' ? (
+        <main className="main">
+          <section className="panel" aria-label="Inputs">
+            <div className="card">
+              <div className="field">
+                <label className="field__label" htmlFor="jd">Job description</label>
+                <textarea
+                  id="jd"
+                  className="textarea"
+                  value={jd}
+                  onChange={(e) => setJd(e.target.value)}
+                  placeholder="Paste the job posting…"
+                />
+              </div>
+              <div className="field">
+                <label className="field__label" htmlFor="cv">Your CV</label>
+                <textarea
+                  id="cv"
+                  className="textarea"
+                  value={cv}
+                  onChange={(e) => setCv(e.target.value)}
+                  placeholder="Paste your CV / experience…"
+                />
+              </div>
+              <div className="actions">
+                <button
+                  className="btn btn--primary"
+                  disabled={!canAnalyze}
+                  onClick={onAnalyze}
+                >
+                  {loading && <span className="spinner" aria-hidden="true" />}
+                  {loading ? 'Analyzing…' : 'Analyze'}
+                </button>
+                <button
+                  className="btn btn--ghost"
+                  disabled={loading}
+                  onClick={loadExample}
+                >
+                  Load example
+                </button>
+              </div>
+              {loading && waking && (
+                <div className="waking" role="status" aria-live="polite">
+                  <span className="spinner spinner--accent" aria-hidden="true" />
+                  <div className="waking__body">
+                    <p className="waking__title">Waking up the analysis server…</p>
+                    <p className="waking__hint">
+                      Free tier — the first request can take ~40s while the server
+                      spins up. Hang tight, this only happens once.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {!waking && error && (
+                <div className="alert alert--error" role="alert" style={{ marginTop: 'var(--sp-4)' }}>
+                  {error}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="panel" aria-label="Results">
+            {result ? (
+              <>
+                <GuardrailPanel tailor={result.tailor} />
+                <FitGauge fit={result.fit} />
+                <JobCard job={result.job} />
+                <div className="card savebar">
+                  <div className="field savebar__field">
+                    <label className="field__label" htmlFor="company">Company (optional)</label>
+                    <input
+                      id="company"
+                      className="input"
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      placeholder="e.g. Acme Inc."
+                    />
+                  </div>
+                  <button type="button" className="btn btn--primary btn--sm" onClick={onSave}>
+                    {justSaved ? '✓ Saved to tracker' : 'Save to tracker'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <EmptyState />
+            )}
+          </section>
+        </main>
+      ) : (
+        <main className="main main--single">
+          <section className="panel" aria-label="Saved applications">
+            <Tracker
+              apps={apps}
+              onStatusChange={onStatusChange}
+              onDelete={onDelete}
+              onOpen={onOpen}
+            />
+          </section>
+        </main>
+      )}
     </div>
   )
 }
