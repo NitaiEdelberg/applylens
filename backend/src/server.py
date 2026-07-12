@@ -13,10 +13,12 @@ from .schemas import (
     FitResult,
     TailorResult,
     AnalyzeResponse,
+    RegenerateBulletRequest,
+    RegenerateBulletResponse,
 )
 from .services.extract import extract_job
 from .services.fit import score_fit
-from .services.tailor import tailor
+from .services.tailor import tailor, regenerate_bullet
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -52,6 +54,17 @@ async def api_tailor(req: AnalyzeRequest):
     _require(req.jd_text, "jd_text")
     _require(req.cv_text, "cv_text")
     return _guard(await _safe(tailor, req.jd_text, req.cv_text))
+
+
+@app.post("/api/regenerate-bullet", response_model=RegenerateBulletResponse)
+async def api_regenerate_bullet(req: RegenerateBulletRequest):
+    """Self-correcting loop: regenerate one flagged bullet, then re-verify it."""
+    _require(req.jd_text, "jd_text")
+    _require(req.cv_text, "cv_text")
+    _require(req.bullet, "bullet")
+    return _guard(
+        await _safe(regenerate_bullet, req.jd_text, req.cv_text, req.bullet, req.issue)
+    )
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)

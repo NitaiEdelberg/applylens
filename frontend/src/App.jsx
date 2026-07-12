@@ -106,6 +106,10 @@ export default function App() {
   const [waking, setWaking] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  // The jd/cv that produced the current `result`. Empty for a re-opened saved
+  // analysis (inputs aren't persisted) so "Fix this bullet" hides gracefully.
+  const [analyzedJd, setAnalyzedJd] = useState('')
+  const [analyzedCv, setAnalyzedCv] = useState('')
   const [serverStatus, setServerStatus] = useState('unknown')
 
   // Tracker state (persisted in localStorage via tracker.js).
@@ -140,6 +144,8 @@ export default function App() {
         },
       })
       setResult(data)
+      setAnalyzedJd(jd)
+      setAnalyzedCv(cv)
       setServerStatus('warm')
     } catch (e) {
       // api.js always throws a human-readable message here.
@@ -176,6 +182,9 @@ export default function App() {
   // Re-open a saved analysis with no network/LLM call.
   function onOpen(app) {
     setResult(app.result)
+    // Saved analyses don't persist the raw jd/cv — clear so Fix hides.
+    setAnalyzedJd('')
+    setAnalyzedCv('')
     setError('')
     setView('analyze')
   }
@@ -278,7 +287,7 @@ export default function App() {
           <section className="panel" aria-label="Results">
             {result ? (
               <>
-                <GuardrailPanel tailor={result.tailor} />
+                <GuardrailPanel tailor={result.tailor} jdText={analyzedJd} cvText={analyzedCv} />
                 <TrustPanel />
                 <FitGauge fit={result.fit} />
                 <JobCard job={result.job} />

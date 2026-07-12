@@ -107,6 +107,12 @@ export const extractJob = (jd_text) => post('/api/extract', { jd_text })
 export const scoreFit = (jd_text, cv_text) => post('/api/fit', { jd_text, cv_text })
 export const tailor = (jd_text, cv_text) => post('/api/tailor', { jd_text, cv_text })
 
+// "Fix this bullet": regenerate one flagged bullet conditioned on its failure
+// reason, then independently re-verify it. Returns { bullet, grounding }.
+// Inherits postWithRetry cold-start retry/backoff + friendly errors.
+export const regenerateBullet = (jd_text, cv_text, bullet, issue) =>
+  postWithRetry('/api/regenerate-bullet', { jd_text, cv_text, bullet, issue: issue || '' })
+
 // One-call flow: runs extract + fit + tailor concurrently on the server.
 // Returns { job, fit, tailor }. `opts.onRetry` fires on transient failures so
 // the UI can show a "waking up the server" state.

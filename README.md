@@ -65,6 +65,17 @@ GROQ_API_KEY=... python evals/run_evals.py # grounding guardrail metrics
 | `POST /api/fit` | `{jd_text, cv_text}` | `overall_score`, matched/partial/missing, summary |
 | `POST /api/tailor` | `{jd_text, cv_text}` | `bullets`, `cover_letter`, `grounding[]`, `flagged_count` |
 | `POST /api/analyze` | `{jd_text, cv_text}` | `{job, fit, tailor}` — runs all three concurrently in one call |
+| `POST /api/regenerate-bullet` | `{jd_text, cv_text, bullet, issue}` | `{bullet, grounding}` — self-correcting loop: regenerate one flagged bullet conditioned on its failure reason, then independently re-verify it |
+
+### Self-correcting guardrail loop
+
+`/api/regenerate-bullet` closes the loop from **detection → repair → re-verification**.
+When the guardrail flags a bullet as fabricated, its machine-readable `issue`
+is fed back into a scoped, constraint-conditioned regeneration of that single
+bullet, and the **new** bullet is then re-graded by the same fact-checker
+(`check_grounding`) — never trusting the generation step. It self-corrects with
+one bounded retry, then degrades honestly: if the CV genuinely can't support the
+claim, the card stays flagged instead of fabricating a green.
 
 ## Roadmap
 

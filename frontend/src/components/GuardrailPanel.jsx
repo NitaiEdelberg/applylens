@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { regenerateBullet } from '../api.js'
 
 // Zip a bullet with its grounding verdict. A genuinely-absent grounding entry
 // falls back to verified styling (the guardrail never invents a red flag).
@@ -35,34 +36,96 @@ function CoverLetter({ text }) {
   )
 }
 
-export default function GuardrailPanel({ tailor }) {
+export default function GuardrailPanel({ tailor, jdText, cvText }) {
   const bullets = tailor.bullets || []
   const grounding = tailor.grounding || []
 
-  // Per-bullet verdict, computed once per tailor payload.
-  const verdicts = useMemo(
-    () => bullets.map((_, i) => verdictFor(grounding, i)),
+  // Fix requires the original inputs. A saved (tracker) analysis re-opened from
+  // localStorage has no jd/cv in state — in that case Fix is hidden gracefully.
+  const canFix = !!(jdText && jdText.trim() && cvText && cvText.trim())
+
+  // Per-bullet items, seeded once per tailor payload. These are mutable: the
+  // "Fix this bullet" loop swaps a card's text + verdict in place so the badge,
+  // reason/evidence, meter %, and counts all re-render from this state.
+  const initialItems = useMemo(
+    () =>
+      bullets.map((text, i) => {
+        const v = verdictFor(grounding, i)
+        return {
+          text,
+          supported: v.supported,
+          evidence: v.evidence,
+          issue: v.issue,
+          missing: v.missing,
+          corrected: false, // set true once regenerated
+          prevIssue: null, // the reason it was flagged before the fix
+        }
+      }),
     [bullets, grounding],
   )
 
-  const verifiedCount = verdicts.filter((v) => v.supported).length
-  const flaggedCount = verdicts.length - verifiedCount
-  const pct = verdicts.length ? Math.round((verifiedCount / verdicts.length) * 100) : 0
-
-  // Inclusion state drives "Copy verified bullets". Default: supported bullets
-  // included, flagged bullets excluded. Reset whenever a new analysis arrives.
-  const [included, setIncluded] = useState(() => verdicts.map((v) => v.supported))
-  useEffect(() => {
-    setIncluded(verdicts.map((v) => v.supported))
-  }, [verdicts])
-
+  const [items, setItems] = useState(initialItems)
+  // Inclusion state drives "Copy selected bullets". Default: supported bullets
+  // included, flagged excluded. Reset whenever a new analysis arrives.
+  const [included, setIncluded] = useState(() => initialItems.map((it) => it.supported))
+  const [fixing, setFixing] = useState(() => initialItems.map(() => false))
+  const [fixError, setFixError] = useState(() => initialItems.map(() => null))
   const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    setItems(initialItems)
+    setIncluded(initialItems.map((it) => it.supported))
+    setFixing(initialItems.map(() => false))
+    setFixError(initialItems.map(() => null))
+  }, [initialItems])
+
+  const verifiedCount = items.filter((it) => it.supported).length
+  const flaggedCount = items.length - verifiedCount
+  const pct = items.length ? Math.round((verifiedCount / items.length) * 100) : 0
 
   function toggle(i) {
     setIncluded((prev) => prev.map((v, idx) => (idx === i ? !v : v)))
   }
 
-  const includedBullets = bullets.filter((_, i) => included[i])
+  async function fixBullet(i) {
+    if (!canFix) return
+    setFixError((prev) => prev.map((e, idx) => (idx === i ? null : e)))
+    setFixing((prev) => prev.map((v, idx) => (idx === i ? true : v)))
+    try {
+      const item = items[i]
+      const res = await regenerateBullet(jdText, cvText, item.text, item.issue || '')
+      const g = res.grounding || {}
+      const supported = !!g.supported
+      const prevIssue = item.issue || 'Not supported by your CV'
+      setItems((prev) =>
+        prev.map((it, idx) =>
+          idx === i
+            ? {
+                ...it,
+                text: res.bullet || it.text,
+                supported,
+                evidence: g.evidence,
+                issue: g.issue,
+                missing: false,
+                corrected: true,
+                prevIssue,
+              }
+            : it,
+        ),
+      )
+      // A newly-verified regenerated bullet is eligible for copy by default.
+      if (supported) {
+        setIncluded((prev) => prev.map((v, idx) => (idx === i ? true : v)))
+      }
+    } catch (e) {
+      const msg = e && e.message ? String(e.message) : 'Could not fix this bullet. Please try again.'
+      setFixError((prev) => prev.map((val, idx) => (idx === i ? msg : val)))
+    } finally {
+      setFixing((prev) => prev.map((v, idx) => (idx === i ? false : v)))
+    }
+  }
+
+  const includedBullets = items.filter((_, i) => included[i]).map((it) => it.text)
 
   async function copyVerified() {
     const text = includedBullets.map((b) => `• ${b}`).join('\n')
@@ -85,7 +148,7 @@ export default function GuardrailPanel({ tailor }) {
             Grounding guardrail
           </h3>
           <p className="guardrail__summary">
-            <strong>{verdicts.length}</strong> {verdicts.length === 1 ? 'bullet' : 'bullets'}
+            <strong>{items.length}</strong> {items.length === 1 ? 'bullet' : 'bullets'}
             <span className="guardrail__dot">·</span>
             <span className="guardrail__count guardrail__count--ok">{verifiedCount} verified</span>
             <span className="guardrail__dot">·</span>
@@ -110,14 +173,17 @@ export default function GuardrailPanel({ tailor }) {
       </div>
 
       <ul className="gcards">
-        {bullets.map((b, i) => {
-          const v = verdicts[i]
-          const ok = v.supported
+        {items.map((it, i) => {
+          const ok = it.supported
           const detail = ok
-            ? v.evidence || 'Verified against your CV'
-            : v.issue || 'Not supported by your CV'
+            ? it.evidence || 'Verified against your CV'
+            : it.issue || 'Not supported by your CV'
+          const isFixing = fixing[i]
           return (
-            <li className={`gcard${ok ? '' : ' gcard--flagged'}`} key={i}>
+            <li
+              className={`gcard${ok ? '' : ' gcard--flagged'}${it.corrected ? ' gcard--corrected' : ''}`}
+              key={i}
+            >
               <div className="gcard__top">
                 <span className={`badge ${ok ? 'badge--success' : 'badge--danger'} gcard__badge`}>
                   {ok ? '✓ Verified against your CV' : '⚠ Not supported'}
@@ -131,11 +197,31 @@ export default function GuardrailPanel({ tailor }) {
                   <span>{included[i] ? 'Included' : 'Excluded'}</span>
                 </label>
               </div>
-              <p className="gcard__text">{b}</p>
+              <p className="gcard__text">{it.text}</p>
+              {it.corrected && ok && (
+                <div className="gcard__corrected">
+                  <span className="gcard__corrected-tag">↺ Corrected</span>
+                  <span className="gcard__corrected-was">was flagged: {it.prevIssue}</span>
+                </div>
+              )}
               <div className={`gcard__detail${ok ? '' : ' gcard__detail--flag'}`}>
                 <span className="gcard__detail-label">{ok ? 'Evidence' : 'Reason'}</span>
                 {detail}
               </div>
+              {!ok && canFix && (
+                <div className="gcard__actions">
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm gcard__fix"
+                    onClick={() => fixBullet(i)}
+                    disabled={isFixing}
+                  >
+                    {isFixing && <span className="spinner spinner--accent" aria-hidden="true" />}
+                    {isFixing ? 'Fixing…' : it.corrected ? 'Try fixing again' : 'Fix this bullet'}
+                  </button>
+                  {fixError[i] && <span className="gcard__fix-error">{fixError[i]}</span>}
+                </div>
+              )}
             </li>
           )
         })}

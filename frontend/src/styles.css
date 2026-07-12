@@ -608,6 +608,57 @@ body {
   margin-bottom: 2px;
 }
 
+/* ---- corrected marker (self-correcting "Fix this bullet" loop) ---- */
+.gcard--corrected {
+  border-left-color: var(--accent);
+}
+
+.gcard__corrected {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-3);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.gcard__corrected-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--sp-2);
+  border-radius: var(--radius-sm);
+  background: rgba(109, 94, 252, 0.14);
+  color: var(--accent-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gcard__corrected-was {
+  opacity: 0.85;
+}
+
+/* ---- per-card Fix action ---- */
+.gcard__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+.gcard__fix {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.gcard__fix-error {
+  font-size: 12px;
+  color: var(--danger);
+}
+
 /* ---- footer / copy ---- */
 .guardrail__footer {
   margin-top: var(--sp-6);

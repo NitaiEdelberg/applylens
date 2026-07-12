@@ -56,6 +56,19 @@ class TailorResult(BaseModel):
     flagged_count: int = 0
 
 
+# ---- self-correcting "Fix this bullet" loop ----
+class RegenerateBulletRequest(BaseModel):
+    jd_text: str
+    cv_text: str
+    bullet: str
+    issue: str = ""
+
+
+class RegenerateBulletResponse(BaseModel):
+    bullet: str
+    grounding: GroundingCheck
+
+
 # ---- combined one-call analyze ----
 class AnalyzeResponse(BaseModel):
     job: ExtractedJob
