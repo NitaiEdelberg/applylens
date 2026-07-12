@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { analyze, checkHealth } from './api.js'
+import { useEffect, useRef, useState } from 'react'
+import { analyze, checkHealth, parseResume } from './api.js'
 import GuardrailPanel from './components/GuardrailPanel.jsx'
 import FitGauge from './components/FitGauge.jsx'
 import Tracker from './components/Tracker.jsx'
@@ -112,6 +112,14 @@ export default function App() {
   const [analyzedCv, setAnalyzedCv] = useState('')
   const [serverStatus, setServerStatus] = useState('unknown')
 
+  // Resume-upload state. The parsed text fills the same `cv` field, so the rest
+  // of the flow is unchanged and the text stays editable / pasteable.
+  const [uploading, setUploading] = useState(false)
+  const [uploadName, setUploadName] = useState('')
+  const [uploadError, setUploadError] = useState('')
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef(null)
+
   // Tracker state (persisted in localStorage via tracker.js).
   const [view, setView] = useState('analyze')
   const [apps, setApps] = useState(loadApps)
@@ -155,6 +163,37 @@ export default function App() {
       setLoading(false)
       setWaking(false)
     }
+  }
+
+  async function onFilePick(file) {
+    if (!file) return
+    setUploadError('')
+    setUploadName(file.name)
+    setUploading(true)
+    try {
+      const text = await parseResume(file)
+      setCv(text)
+    } catch (e) {
+      setUploadError(String(e.message || e))
+      setUploadName('')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function onFileInputChange(e) {
+    const file = e.target.files && e.target.files[0]
+    onFilePick(file)
+    // Reset so picking the same file again re-triggers change.
+    e.target.value = ''
+  }
+
+  function onDrop(e) {
+    e.preventDefault()
+    setDragOver(false)
+    if (uploading) return
+    const file = e.dataTransfer.files && e.dataTransfer.files[0]
+    onFilePick(file)
   }
 
   function loadExample() {
@@ -239,6 +278,40 @@ export default function App() {
               </div>
               <div className="field">
                 <label className="field__label" htmlFor="cv">Your CV</label>
+                <div
+                  className={`upload${dragOver ? ' upload--drag' : ''}`}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    setDragOver(true)
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={onDrop}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.docx"
+                    className="upload__input"
+                    onChange={onFileInputChange}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    disabled={uploading}
+                    onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                  >
+                    {uploading && <span className="spinner spinner--accent" aria-hidden="true" />}
+                    {uploading ? 'Reading…' : 'Upload PDF/DOCX'}
+                  </button>
+                  <span className="upload__hint">
+                    {uploadName ? uploadName : 'or drop a file here — or paste below'}
+                  </span>
+                </div>
+                {uploadError && (
+                  <div className="alert alert--error" role="alert">
+                    {uploadError}
+                  </div>
+                )}
                 <textarea
                   id="cv"
                   className="textarea"

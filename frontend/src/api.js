@@ -113,6 +113,34 @@ export const tailor = (jd_text, cv_text) => post('/api/tailor', { jd_text, cv_te
 export const regenerateBullet = (jd_text, cv_text, bullet, issue) =>
   postWithRetry('/api/regenerate-bullet', { jd_text, cv_text, bullet, issue: issue || '' })
 
+// Upload a PDF/DOCX resume and get back its extracted text. Posts multipart
+// FormData — do NOT set Content-Type manually; the browser adds the multipart
+// boundary. Bypasses the JSON postWithRetry; a single fetch with friendly error
+// handling is enough for a one-off parse. Resolves to the extracted string.
+export async function parseResume(file) {
+  const form = new FormData()
+  form.append('file', file)
+  let res
+  try {
+    res = await fetchWithTimeout(
+      `${BASE}/api/parse-resume`,
+      { method: 'POST', body: form },
+      ANALYZE_TIMEOUT,
+    )
+  } catch (err) {
+    throw new Error(
+      isTransient(err)
+        ? "We couldn't reach the server to read your file. It may be waking up — try again in a moment."
+        : 'Something went wrong reading your file. Please try again or paste your CV.',
+    )
+  }
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data.detail || `Couldn't read this file (${res.status})`)
+  }
+  return data.text || ''
+}
+
 // One-call flow: runs extract + fit + tailor concurrently on the server.
 // Returns { job, fit, tailor }. `opts.onRetry` fires on transient failures so
 // the UI can show a "waking up the server" state.

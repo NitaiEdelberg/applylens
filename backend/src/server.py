@@ -2,10 +2,11 @@
 import asyncio
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from .llm import LLMError
+from .services.resume import ResumeParseError, extract_text
 from .schemas import (
     ExtractRequest,
     AnalyzeRequest,
@@ -65,6 +66,45 @@ async def api_regenerate_bullet(req: RegenerateBulletRequest):
     return _guard(
         await _safe(regenerate_bullet, req.jd_text, req.cv_text, req.bullet, req.issue)
     )
+
+
+# Max upload size for a resume file. Resumes are small; 2 MB is generous and
+# keeps memory trivial on the free-tier box.
+MAX_RESUME_BYTES = 2 * 1024 * 1024
+
+
+@app.post("/api/parse-resume")
+async def api_parse_resume(file: UploadFile = File(...)):
+    """Extract plain text from an uploaded PDF/DOCX so it can fill the CV field.
+
+    Pure parsing (no LLM). Every failure is a friendly 400 — never a 500.
+    """
+    name = file.filename or ""
+    lname = name.lower()
+    if not (lname.endswith(".pdf") or lname.endswith(".docx")):
+        raise HTTPException(
+            status_code=400, detail="Unsupported file type — upload a PDF or DOCX"
+        )
+
+    data = await file.read()
+    if len(data) > MAX_RESUME_BYTES:
+        raise HTTPException(
+            status_code=400, detail="File is too large — please upload a file under 2 MB"
+        )
+    if not data:
+        raise HTTPException(status_code=400, detail="The uploaded file is empty")
+
+    try:
+        text = extract_text(name, data)
+    except ResumeParseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001 — never leak a 500 for a bad file
+        logging.warning("resume parse failed: %s", exc)
+        raise HTTPException(
+            status_code=400,
+            detail="Couldn't read this file. Please paste your CV instead.",
+        )
+    return {"text": text}
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)

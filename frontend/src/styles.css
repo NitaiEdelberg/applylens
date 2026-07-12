@@ -276,6 +276,37 @@ body {
   color: var(--text);
 }
 
+/* ---------- Resume upload ---------- */
+.upload {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.upload--drag {
+  border-color: var(--accent);
+  background: rgba(109, 94, 252, 0.08);
+}
+
+.upload__input {
+  display: none;
+}
+
+.upload__hint {
+  font-size: 13px;
+  color: var(--text-dim);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------- Empty state ---------- */
 .empty {
   text-align: center;
