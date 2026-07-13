@@ -142,10 +142,12 @@ export async function parseResume(file) {
 }
 
 // One-call flow: runs extract + fit + tailor concurrently on the server.
-// Returns { job, fit, tailor }. `opts.onRetry` fires on transient failures so
-// the UI can show a "waking up the server" state.
-export const analyze = (jd_text, cv_text, opts = {}) =>
-  postWithRetry('/api/analyze', { jd_text, cv_text }, opts)
+// Returns { job, fit, tailor, skill_match, rag }. `career_text` is optional — when
+// non-empty the server runs RAG over it and grounds tailoring against CV + the
+// retrieved chunks. `opts.onRetry` fires on transient failures so the UI can
+// show a "waking up the server" state.
+export const analyze = (jd_text, cv_text, career_text = '', opts = {}) =>
+  postWithRetry('/api/analyze', { jd_text, cv_text, career_text }, opts)
 
 // ---- optional accounts + per-user cloud tracker (Circle 3) ----
 // These are for signed-in users only; anonymous users never call them and keep

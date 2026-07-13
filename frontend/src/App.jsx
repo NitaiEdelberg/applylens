@@ -132,9 +132,34 @@ function StatusDot({ status }) {
   )
 }
 
+// Small note shown when RAG pulled relevant experiences from the optional
+// career-history corpus. Renders nothing unless retrieval was actually used.
+function RagNote({ rag }) {
+  if (!rag || !rag.used) return null
+  const chunks = rag.chunks || []
+  if (chunks.length === 0) return null
+  const src = rag.source === 'gemini' ? 'Gemini embeddings' : 'local TF-IDF'
+  return (
+    <div className="card rag" aria-label="Retrieved career history">
+      <p className="rag__head">
+        🔎 RAG: pulled {chunks.length} relevant experience
+        {chunks.length === 1 ? '' : 's'} from your career history (via {src}) —
+        tailoring is grounded against these plus your CV.
+      </p>
+      <ul className="rag__list">
+        {chunks.map((c, i) => (
+          <li className="rag__snippet" key={i}>{c}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export default function App() {
   const [jd, setJd] = useState('')
   const [cv, setCv] = useState('')
+  const [career, setCareer] = useState('')
+  const [careerOpen, setCareerOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [waking, setWaking] = useState(false)
   const [error, setError] = useState('')
@@ -266,7 +291,7 @@ export default function App() {
     setJustSaved(false)
     setLoading(true)
     try {
-      const data = await analyze(jd, cv, {
+      const data = await analyze(jd, cv, career.trim(), {
         // Fires on the first transient failure — the server is likely cold.
         onRetry: () => {
           setWaking(true)
@@ -493,6 +518,36 @@ export default function App() {
                   placeholder="Paste your CV / experience…"
                 />
               </div>
+              <div className="field field--career">
+                <button
+                  type="button"
+                  className="career__toggle"
+                  aria-expanded={careerOpen}
+                  onClick={() => setCareerOpen((v) => !v)}
+                >
+                  <span className="career__caret" aria-hidden="true">
+                    {careerOpen ? '▾' : '▸'}
+                  </span>
+                  Career history (optional — deeper tailoring)
+                  {!careerOpen && career.trim() ? ' ✓' : ''}
+                </button>
+                {careerOpen && (
+                  <>
+                    <p className="career__hint">
+                      Paste a fuller background — extra roles, projects, a brag doc.
+                      For each job we retrieve the most relevant pieces (RAG) and
+                      tailor from them while keeping every bullet grounded.
+                    </p>
+                    <textarea
+                      id="career"
+                      className="textarea"
+                      value={career}
+                      onChange={(e) => setCareer(e.target.value)}
+                      placeholder="Paste extra roles, projects, or a brag doc…"
+                    />
+                  </>
+                )}
+              </div>
               <div className="actions">
                 <button
                   className="btn btn--primary"
@@ -533,6 +588,7 @@ export default function App() {
           <section className="panel" aria-label="Results">
             {result ? (
               <>
+                <RagNote rag={result.rag} />
                 <GuardrailPanel tailor={result.tailor} jdText={analyzedJd} cvText={analyzedCv} />
                 <TrustPanel />
                 <FitGauge fit={result.fit} />

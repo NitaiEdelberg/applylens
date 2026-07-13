@@ -1540,6 +1540,74 @@ body {
   gap: var(--sp-2);
 }
 
+/* ---------- Optional career-history corpus (RAG) ---------- */
+.field--career {
+  gap: var(--sp-3);
+}
+
+.career__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.career__toggle:hover {
+  color: var(--text);
+}
+
+.career__caret {
+  color: var(--accent-2);
+}
+
+.career__hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* Retrieved-experiences note in the results column. */
+.rag {
+  border-color: var(--accent);
+  background: rgba(109, 94, 252, 0.08);
+}
+
+.rag__head {
+  margin: 0 0 var(--sp-3);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.rag__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.rag__snippet {
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+}
+
 /* ---------- Auth modal ---------- */
 .modal {
   position: fixed;

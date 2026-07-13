@@ -20,3 +20,9 @@ passlib[bcrypt]
 # warning; pin to the last compatible release for quiet, correct hashing.
 bcrypt==4.0.1
 pyjwt
+# RAG career-corpus retrieval (Circle 4). Only langchain-core — pure-Python, no
+# torch/transformers, low build risk. Provides the Embeddings interface + an
+# InMemoryVectorStore for the retrieval chain. Embeddings come from the hosted
+# Gemini API (GEMINI_API_KEY) or a local scikit-learn TF-IDF fallback; do NOT
+# add langchain-community / langchain-google-genai or anything heavy.
+langchain-core>=0.2.43,<0.4

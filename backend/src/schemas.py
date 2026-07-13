@@ -11,6 +11,10 @@ class ExtractRequest(BaseModel):
 class AnalyzeRequest(BaseModel):
     jd_text: str
     cv_text: str
+    # Optional longer career history (multiple roles/projects). When present,
+    # RAG retrieves the most relevant pieces per job and adds them as an extra
+    # GROUNDED source for tailoring. Absent → behaves exactly as before.
+    career_text: Optional[str] = None
 
 
 # ---- extraction ----
@@ -86,6 +90,16 @@ class SkillMatch(BaseModel):
     method: str = "tf-idf cosine"
 
 
+# ---- RAG over the optional career-history corpus (Circle 4) ----
+class RagInfo(BaseModel):
+    used: bool = False
+    # The career-history chunks retrieved for this job (grounded source, shown
+    # to the user). Empty when RAG wasn't used.
+    chunks: List[str] = []
+    # Which embedder produced the retrieval: "gemini" (hosted) or "tfidf" (local).
+    source: str = "tfidf"
+
+
 # ---- combined one-call analyze ----
 class AnalyzeResponse(BaseModel):
     job: ExtractedJob
@@ -93,6 +107,9 @@ class AnalyzeResponse(BaseModel):
     tailor: TailorResult
     # Deterministic TF-IDF keyword-coverage second opinion (no LLM call).
     skill_match: SkillMatch = SkillMatch()
+    # RAG retrieval over the optional career corpus. used=false when no
+    # career_text was supplied (behavior identical to before).
+    rag: RagInfo = RagInfo()
 
 
 # ---- optional accounts (Circle 3) ----

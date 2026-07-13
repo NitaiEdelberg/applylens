@@ -33,6 +33,7 @@ from .services.extract import extract_job
 from .services.fit import score_fit
 from .services.tailor import tailor, regenerate_bullet
 from .services.skillmatch import skill_match
+from .services.rag import retrieve_context, default_source
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -131,17 +132,31 @@ async def api_parse_resume(file: UploadFile = File(...)):
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
 async def api_analyze(req: AnalyzeRequest):
-    """Run extraction, fit-scoring, and tailoring concurrently in one call."""
+    """Run extraction, fit-scoring, and tailoring concurrently in one call.
+
+    When an optional `career_text` corpus is supplied, RAG retrieves the most
+    relevant career-history chunks for this job and tailoring grounds against
+    CV + retrieved chunks (a fuller, still-honest source of truth).
+    """
     _require(req.jd_text, "jd_text")
     _require(req.cv_text, "cv_text")
-    job, fit, tailored = await _safe(
-        _gather_analyze, req.jd_text, req.cv_text
-    )
+    career_text = (req.career_text or "").strip()
+
+    if career_text:
+        rag_info, job, fit, tailored = await _safe(
+            _analyze_with_rag, req.jd_text, req.cv_text, career_text
+        )
+    else:
+        job, fit, tailored = await _safe(_gather_analyze, req.jd_text, req.cv_text)
+        rag_info = {"used": False, "chunks": [], "source": default_source()}
+
     # Deterministic, CPU-only second opinion: TF-IDF keyword coverage of the
     # extracted requirements by the CV. No LLM call, so no extra latency.
     requirements = list(job.get("must_haves", [])) + list(job.get("nice_to_haves", []))
     match = skill_match(requirements, req.cv_text)
-    return AnalyzeResponse(job=job, fit=fit, tailor=tailored, skill_match=match)
+    return AnalyzeResponse(
+        job=job, fit=fit, tailor=tailored, skill_match=match, rag=rag_info
+    )
 
 
 async def _gather_analyze(jd_text: str, cv_text: str):
@@ -150,6 +165,38 @@ async def _gather_analyze(jd_text: str, cv_text: str):
         score_fit(jd_text, cv_text),
         tailor(jd_text, cv_text),
     )
+
+
+async def _analyze_with_rag(jd_text: str, cv_text: str, career_text: str):
+    """RAG-augmented analyze: extract + fit run concurrently, then retrieve
+    relevant career chunks, then tailor+ground against CV + those chunks.
+
+    Tailoring must wait for retrieval so its grounded source of truth is
+    (cv_text + retrieved chunks): a bullet backed by a real retrieved experience
+    is legitimately grounded; anything in neither is still flagged.
+    """
+    job, fit = await asyncio.gather(
+        extract_job(jd_text), score_fit(jd_text, cv_text)
+    )
+    requirements = (
+        list(job.get("must_haves", []))
+        + list(job.get("nice_to_haves", []))
+        + list(job.get("stack", []))
+    )
+    # retrieve_context is sync (CPU for TF-IDF, blocking httpx for Gemini) — run
+    # it off the event loop so it never stalls the async LLM routes. (Uses
+    # run_in_executor rather than asyncio.to_thread for Python 3.8 support.)
+    loop = asyncio.get_running_loop()
+    rag = await loop.run_in_executor(
+        None, retrieve_context, requirements or jd_text, career_text, 4
+    )
+    chunks = rag["chunks"]
+    source_text = (
+        cv_text if not chunks else cv_text + "\n\n" + "\n\n".join(chunks)
+    )
+    tailored = await tailor(jd_text, source_text)
+    rag_info = {"used": True, "chunks": chunks, "source": rag["source"]}
+    return rag_info, job, fit, tailored
 
 
 # ---- optional accounts + per-user cloud tracker (Circle 3) ----
