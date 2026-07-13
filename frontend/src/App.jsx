@@ -139,7 +139,9 @@ function RagNote({ rag }) {
   if (!rag || !rag.used) return null
   const chunks = rag.chunks || []
   if (chunks.length === 0) return null
-  const src = rag.source === 'gemini' ? 'Gemini embeddings' : 'local TF-IDF'
+  const src =
+    { jina: 'Jina embeddings', gemini: 'Gemini embeddings' }[rag.source] ||
+    'local TF-IDF'
   return (
     <div className="card rag" aria-label="Retrieved career history">
       <p className="rag__head">

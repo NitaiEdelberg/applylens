@@ -27,5 +27,9 @@ services:
       # Optional Elasticsearch full-text search (Circle 5). Leave unset to fall
       # back to a case-insensitive DB substring match. Set it to a Bonsai/Elastic
       # Cloud URL WITH credentials embedded (https://USER:PASS@host).
+      # Optional RAG embeddings (Circle 4). Jina is free + no credit card; unset
+      # falls back to a local TF-IDF embedder.
+      - key: JINA_API_KEY
+        sync: false                       # set to your free Jina key (secret), or leave unset
       - key: ELASTICSEARCH_URL
         sync: false                       # set to the Bonsai URL (secret), or leave unset

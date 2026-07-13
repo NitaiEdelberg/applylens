@@ -27,7 +27,12 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import InMemoryVectorStore
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-from ..config import GEMINI_API_KEY, GEMINI_EMBED_MODEL
+from ..config import (
+    GEMINI_API_KEY,
+    GEMINI_EMBED_MODEL,
+    JINA_API_KEY,
+    JINA_EMBED_MODEL,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +42,53 @@ _MIN_CHUNK_CHARS = 40
 
 
 def default_source() -> str:
-    """Which embedder would be used right now — 'gemini' if a key is set, else 'tfidf'."""
-    return "gemini" if GEMINI_API_KEY else "tfidf"
+    """Which embedder would be used right now, in preference order."""
+    if JINA_API_KEY:
+        return "jina"
+    if GEMINI_API_KEY:
+        return "gemini"
+    return "tfidf"
 
 
 # ---- pluggable embedders (LangChain Embeddings interface) ----
+class JinaEmbeddings(Embeddings):
+    """LangChain ``Embeddings`` backed by Jina's free embeddings API.
+
+    Free, no credit card, no region restriction, and it embeds a whole batch of
+    texts in ONE request. Network/HTTP errors propagate so the caller can fall
+    back to the local TF-IDF embedder.
+    """
+
+    def __init__(self, api_key: str, model: str = JINA_EMBED_MODEL, timeout: float = 30.0):
+        if not api_key:
+            raise ValueError("JinaEmbeddings requires an API key")
+        self._api_key = api_key
+        self._model = model
+        self._url = "https://api.jina.ai/v1/embeddings"
+        self._timeout = timeout
+
+    def _embed(self, texts: List[str]) -> List[List[float]]:
+        resp = httpx.post(
+            self._url,
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            json={"model": self._model, "input": texts},
+            timeout=self._timeout,
+        )
+        resp.raise_for_status()
+        data = sorted(resp.json()["data"], key=lambda d: d.get("index", 0))
+        return [[float(v) for v in d["embedding"]] for d in data]
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        return self._embed(texts)
+
+    def embed_query(self, text: str) -> List[float]:
+        return self._embed([text])[0]
+
+
+
 class GeminiEmbeddings(Embeddings):
     """LangChain ``Embeddings`` backed by Gemini's ``embedContent`` REST API.
 
@@ -168,6 +215,14 @@ def retrieve_context(
     chunks = _chunk(career_text)
     if not chunks or not query:
         return {"chunks": [], "source": default_source()}
+
+    # Preference order: Jina (free hosted) -> Gemini (if billed) -> local TF-IDF.
+    if JINA_API_KEY:
+        try:
+            retrieved = _retrieve(chunks, JinaEmbeddings(JINA_API_KEY), query, k)
+            return {"chunks": retrieved, "source": "jina"}
+        except Exception as exc:  # noqa: BLE001 — degrade to the next embedder
+            logger.warning("Jina embeddings failed (%s); falling back", exc)
 
     if GEMINI_API_KEY:
         try:

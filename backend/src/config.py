@@ -13,6 +13,12 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "text-embedding-004")
 
+# Jina embeddings — free, no credit card, no region limit (get a key at
+# https://jina.ai/embeddings). Preferred hosted embedder for RAG; falls back to
+# a local scikit-learn TF-IDF embedder when unset.
+JINA_API_KEY = os.getenv("JINA_API_KEY", "")
+JINA_EMBED_MODEL = os.getenv("JINA_EMBED_MODEL", "jina-embeddings-v3")
+
 # Optional Elasticsearch instance for full-text search over tracked applications
 # (Circle 5). Bonsai/Elastic Cloud give a full URL with credentials embedded
 # (https://USER:PASS@host). Unset -> the search endpoint falls back to a
