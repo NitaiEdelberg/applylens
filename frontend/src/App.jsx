@@ -7,6 +7,7 @@ import {
   cloudSaveApp,
   cloudUpdateStatus,
   cloudDeleteApp,
+  cloudSearchApps,
 } from './api.js'
 import GuardrailPanel from './components/GuardrailPanel.jsx'
 import FitGauge from './components/FitGauge.jsx'
@@ -195,6 +196,15 @@ export default function App() {
   // Count of local apps we can offer to import on first login (0 = no offer).
   const [importOffer, setImportOffer] = useState(0)
 
+  // Tracker search. Signed-in users hit GET /api/tracker/search (debounced,
+  // Bearer) — Elasticsearch-backed when configured, DB substring otherwise.
+  // Anonymous users filter their localStorage apps client-side by the same
+  // title/company substring. `searchResults` is null when not actively
+  // searching (show the full `apps`), or the cloud result array otherwise.
+  const [search, setSearch] = useState('')
+  const [searchResults, setSearchResults] = useState(null)
+  const [searching, setSearching] = useState(false)
+
   // Ping /health on load so the warm/cold dot reflects reality before the first
   // analyze. A sleeping / unreachable server resolves to 'cold' (never throws).
   useEffect(() => {
@@ -232,6 +242,44 @@ export default function App() {
     }
   }, [token])
 
+  // Signed-in search: debounce the query and hit the server. Empty query clears
+  // results (falls back to showing the full `apps`). Anonymous users don't run
+  // this effect — they filter localStorage client-side in `visibleApps` below.
+  useEffect(() => {
+    if (!token) {
+      setSearchResults(null)
+      return
+    }
+    const q = search.trim()
+    if (!q) {
+      setSearchResults(null)
+      setSearching(false)
+      return
+    }
+    let alive = true
+    setSearching(true)
+    const handle = setTimeout(() => {
+      cloudSearchApps(token, q)
+        .then((list) => {
+          if (!alive) return
+          setSearchResults(list.map(normalizeCloudApp))
+          setTrackerError('')
+        })
+        .catch((e) => {
+          if (!alive) return
+          setSearchResults([])
+          setTrackerError(String(e.message || e))
+        })
+        .finally(() => {
+          if (alive) setSearching(false)
+        })
+    }, 300)
+    return () => {
+      alive = false
+      clearTimeout(handle)
+    }
+  }, [search, token])
+
   async function refreshCloud() {
     try {
       const list = await cloudListApps(token)
@@ -261,6 +309,8 @@ export default function App() {
     setEmail('')
     setImportOffer(0)
     setTrackerError('')
+    setSearch('')
+    setSearchResults(null)
     // The token effect will reload the anonymous localStorage apps.
   }
 
@@ -407,6 +457,25 @@ export default function App() {
   }
 
   const canAnalyze = jd.trim() && cv.trim() && !loading
+
+  // The apps to render in the tracker, after search. Signed-in users get the
+  // server's results (`searchResults`); anonymous users filter localStorage by
+  // the same title/company substring, client-side. Empty query → full list.
+  const trimmedSearch = search.trim()
+  const searchActive = trimmedSearch.length > 0
+  let visibleApps = apps
+  if (searchActive) {
+    if (token) {
+      visibleApps = searchResults || []
+    } else {
+      const needle = trimmedSearch.toLowerCase()
+      visibleApps = apps.filter(
+        (a) =>
+          (a.title || '').toLowerCase().includes(needle) ||
+          (a.company || '').toLowerCase().includes(needle),
+      )
+    }
+  }
 
   return (
     <div className="app">
@@ -652,12 +721,39 @@ export default function App() {
                 {trackerError}
               </div>
             )}
-            <Tracker
-              apps={apps}
-              onStatusChange={onStatusChange}
-              onDelete={onDelete}
-              onOpen={onOpen}
-            />
+            {apps.length > 0 && (
+              <div className="tracker__search">
+                <input
+                  type="search"
+                  className="input"
+                  placeholder="Search your applications by title or company…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  aria-label="Search applications"
+                />
+                {token && searchActive && (
+                  <span className="tracker__searchhint" aria-live="polite">
+                    {searching ? 'searching…' : 'search'}
+                  </span>
+                )}
+              </div>
+            )}
+            {searchActive && visibleApps.length === 0 && !searching ? (
+              <div className="empty">
+                <div className="empty__icon" aria-hidden="true">🔍</div>
+                <p className="empty__title">No matches</p>
+                <p className="empty__hint">
+                  No saved applications match “{trimmedSearch}”.
+                </p>
+              </div>
+            ) : (
+              <Tracker
+                apps={visibleApps}
+                onStatusChange={onStatusChange}
+                onDelete={onDelete}
+                onOpen={onOpen}
+              />
+            )}
           </section>
         </main>
       )}

@@ -24,3 +24,8 @@ services:
         sync: false                       # set to Supabase session-pooler URI (secret)
       - key: JWT_SECRET
         generateValue: true               # Render generates a strong random secret
+      # Optional Elasticsearch full-text search (Circle 5). Leave unset to fall
+      # back to a case-insensitive DB substring match. Set it to a Bonsai/Elastic
+      # Cloud URL WITH credentials embedded (https://USER:PASS@host).
+      - key: ELASTICSEARCH_URL
+        sync: false                       # set to the Bonsai URL (secret), or leave unset

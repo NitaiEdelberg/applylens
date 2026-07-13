@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select, text as sql_text
+from sqlalchemy import or_, select, text as sql_text
 from sqlalchemy.orm import Session
 
 from .llm import LLMError
@@ -34,6 +34,7 @@ from .services.fit import score_fit
 from .services.tailor import tailor, regenerate_bullet
 from .services.skillmatch import skill_match
 from .services.rag import retrieve_context, default_source
+from .services import search as es_search
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -285,6 +286,69 @@ def api_tracker_list(
     return [_to_tracked_app(r) for r in rows]
 
 
+@app.get("/api/tracker/search", response_model=List[TrackedApp])
+def api_tracker_search(
+    q: str = "",
+    user: User = Depends(current_user),
+    db: Session = Depends(get_session),
+):
+    """Full-text search over the signed-in user's tracked applications.
+
+    When Elasticsearch is configured it ranks via ES (user-scoped) and this
+    endpoint fetches those rows from the DB preserving the ES relevance order.
+    On any ES failure OR when ES is disabled it FALLS BACK to a case-insensitive
+    substring match on title/company — so search is always available and fully
+    testable with no ES instance. An empty query returns all the user's apps,
+    newest first (same shape as GET /api/tracker)."""
+    query = (q or "").strip()
+
+    # Empty query -> everything, newest first.
+    if not query:
+        rows = db.scalars(
+            select(TrackedApplication)
+            .where(TrackedApplication.user_id == user.id)
+            .order_by(
+                TrackedApplication.created_at.desc(), TrackedApplication.id.desc()
+            )
+        ).all()
+        return [_to_tracked_app(r) for r in rows]
+
+    # Try Elasticsearch first; fall back to the DB on disabled/unavailable.
+    if es_search.es_enabled():
+        try:
+            ids = es_search.search_apps(user.id, query)
+            if not ids:
+                return []
+            rows = db.scalars(
+                select(TrackedApplication).where(
+                    TrackedApplication.user_id == user.id,
+                    TrackedApplication.id.in_(ids),
+                )
+            ).all()
+            # Preserve ES relevance order and stay user-scoped (a row that isn't
+            # this user's — or was deleted — simply doesn't appear).
+            by_id = {r.id: r for r in rows}
+            ordered = [by_id[i] for i in ids if i in by_id]
+            return [_to_tracked_app(r) for r in ordered]
+        except es_search.SearchUnavailable:
+            pass  # degrade to the DB substring match below
+
+    # DB fallback: case-insensitive substring match on title/company, newest first.
+    like = f"%{query}%"
+    rows = db.scalars(
+        select(TrackedApplication)
+        .where(
+            TrackedApplication.user_id == user.id,
+            or_(
+                TrackedApplication.title.ilike(like),
+                TrackedApplication.company.ilike(like),
+            ),
+        )
+        .order_by(TrackedApplication.created_at.desc(), TrackedApplication.id.desc())
+    ).all()
+    return [_to_tracked_app(r) for r in rows]
+
+
 @app.post("/api/tracker", response_model=TrackedApp)
 def api_tracker_create(
     req: TrackerCreate,
@@ -303,6 +367,7 @@ def api_tracker_create(
     db.add(row)
     db.commit()
     db.refresh(row)
+    es_search.index_app(row)  # best-effort; never raises, never blocks the save
     return _to_tracked_app(row)
 
 
@@ -325,6 +390,7 @@ def api_tracker_update(
     row.status = req.status or row.status
     db.commit()
     db.refresh(row)
+    es_search.index_app(row)  # best-effort re-index on status change
     return _to_tracked_app(row)
 
 
@@ -337,6 +403,7 @@ def api_tracker_delete(
     row = _owned_app(app_id, user, db)
     db.delete(row)
     db.commit()
+    es_search.delete_app(app_id)  # best-effort remove from the index; non-fatal
     return {"ok": True}
 
 

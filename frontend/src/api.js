@@ -195,6 +195,13 @@ export const login = (email, password) =>
 // Cloud tracker CRUD (all require a token; all user-scoped server-side).
 export const cloudListApps = (token) => jsonRequest('/api/tracker', { token })
 
+// Full-text search over the signed-in user's tracked applications. Backed by
+// Elasticsearch when configured server-side, else a DB substring fallback — the
+// caller doesn't care which. An empty `q` returns all the user's apps (newest
+// first). Resolves to the same TrackedApp array shape as cloudListApps.
+export const cloudSearchApps = (token, q) =>
+  jsonRequest(`/api/tracker/search?q=${encodeURIComponent(q || '')}`, { token })
+
 export const cloudSaveApp = (token, { title, company, score, flagged, payload }) =>
   jsonRequest('/api/tracker', {
     method: 'POST',
