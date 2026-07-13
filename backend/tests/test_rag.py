@@ -107,7 +107,7 @@ def _install_fake_llm(monkeypatch):
         if "score how well a candidate's CV matches" in system:
             return {"overall_score": 70, "matched": [], "partial": [], "missing": [], "summary": "ok"}
         # tailor: echo a distinctive phrase from the CV block (incl. retrieved chunks)
-        if system.startswith("You tailor"):
+        if "resume writer" in system or system.startswith("You tailor"):
             cv = _cv_block(user)
             if "Kubernetes" in cv:
                 bullet = "Scaled production Kubernetes clusters serving millions of users"

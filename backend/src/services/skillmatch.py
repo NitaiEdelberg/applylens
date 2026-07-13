@@ -1,34 +1,41 @@
 """Deterministic, CPU-only skill-coverage signal — a non-LLM second opinion.
 
-Uses classic TF-IDF vectorization + cosine similarity (scikit-learn) to measure
-how well a CV covers a job's extracted requirements. No LLM call, no network,
-no torch/transformers — same inputs always produce the same output. It is a
-keyword/TF-IDF coverage heuristic that *complements* (never replaces) the LLM's
-semantic fit score.
+For each extracted job requirement, checks how many of its meaningful terms
+actually appear in the CV, using scikit-learn's text analyzer (lowercasing,
+tokenization, English stop-word removal). A requirement is "covered" when at
+least `threshold` of its terms are present in the CV. Deterministic, no LLM, no
+network, no torch — a keyword-coverage heuristic that complements (never
+replaces) the LLM's semantic fit score.
+
+Why term overlap and not TF-IDF cosine against the whole CV: cosine between a
+short requirement and a long CV is diluted by the CV's many other terms, so
+genuine matches (e.g. a one-word "JavaScript", or "BSc in Computer Science")
+score below any useful threshold and get wrongly flagged as missing. Checking
+term presence answers "does the CV actually mention this?" directly, accurately,
+and interpretably.
 """
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+
+_METHOD = "keyword term coverage"
+
+# One analyzer, reused: lowercases, tokenizes (word chars, len >= 2, so "BSc/MSc"
+# -> "bsc","msc" and "Node.js" -> "node","js"), and strips English stop words.
+_ANALYZE = TfidfVectorizer(stop_words="english").build_analyzer()
 
 
-def skill_match(requirements: list, cv_text: str, threshold: float = 0.12) -> dict:
-    """Compute deterministic TF-IDF keyword coverage of `requirements` by `cv_text`.
+def skill_match(requirements: list, cv_text: str, threshold: float = 0.5) -> dict:
+    """Deterministic keyword-term coverage of `requirements` by `cv_text`.
 
-    Fits a TF-IDF vectorizer (english stop words, unigrams+bigrams) over the CV
-    plus each requirement, then scores every requirement by cosine similarity to
-    the CV vector. A requirement is "covered" when its similarity >= threshold.
-
-    Returns a dict:
+    Returns:
         {
           "coverage_score": int,      # 0-100 = covered / total * 100
           "covered": [{"requirement": str, "score": float}],  # sorted high→low
           "missing": [str],
-          "method": "tf-idf cosine",
+          "method": "keyword term coverage",
         }
 
-    Empty requirements or an empty CV degrade gracefully to a 0 score and empty
-    lists — never raises.
+    Empty requirements or an empty CV degrade to a 0 score — never raises.
     """
-    # Normalize: keep only non-empty requirement strings.
     reqs = [r.strip() for r in (requirements or []) if r and r.strip()]
     cv = (cv_text or "").strip()
 
@@ -37,34 +44,27 @@ def skill_match(requirements: list, cv_text: str, threshold: float = 0.12) -> di
             "coverage_score": 0,
             "covered": [],
             "missing": list(reqs),  # nothing can be covered with an empty CV
-            "method": "tf-idf cosine",
+            "method": _METHOD,
         }
 
-    # Fit over [cv] + requirements so the vocabulary spans both sides. Row 0 is
-    # the CV; rows 1..N are the requirements.
-    corpus = [cv] + reqs
-    try:
-        vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2))
-        matrix = vectorizer.fit_transform(corpus)
-    except ValueError:
-        # Empty vocabulary (e.g. every token is a stop word) — nothing to match.
-        return {
-            "coverage_score": 0,
-            "covered": [],
-            "missing": reqs,
-            "method": "tf-idf cosine",
-        }
-
-    cv_vec = matrix[0:1]
-    req_vecs = matrix[1:]
-    sims = cosine_similarity(req_vecs, cv_vec).ravel()
+    cv_tokens = set(_ANALYZE(cv))
 
     covered = []
     missing = []
-    for req, sim in zip(reqs, sims):
-        score = round(float(sim), 2)
-        if sim >= threshold:
-            covered.append({"requirement": req, "score": score})
+    for req in reqs:
+        terms = set(_ANALYZE(req))
+        if terms:
+            present = sum(1 for t in terms if t in cv_tokens)
+            frac = present / len(terms)
+            is_covered = frac >= threshold
+        else:
+            # Requirement had no analyzable terms (all stop words, or symbol-only
+            # like "C++") — fall back to a case-insensitive substring check.
+            is_covered = req.lower() in cv.lower()
+            frac = 1.0 if is_covered else 0.0
+
+        if is_covered:
+            covered.append({"requirement": req, "score": round(frac, 2)})
         else:
             missing.append(req)
 
@@ -75,5 +75,5 @@ def skill_match(requirements: list, cv_text: str, threshold: float = 0.12) -> di
         "coverage_score": coverage_score,
         "covered": covered,
         "missing": missing,
-        "method": "tf-idf cosine",
+        "method": _METHOD,
     }

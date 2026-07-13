@@ -104,7 +104,7 @@ def test_skill_match_covers_present_flags_missing():
     assert "Python" in covered
     assert "Kubernetes" in result["missing"]
     assert result["coverage_score"] == 50
-    assert result["method"] == "tf-idf cosine"
+    assert result["method"] == "keyword term coverage"
     # covered scores are rounded similarities in [0, 1]
     for c in result["covered"]:
         assert 0.0 <= c["score"] <= 1.0
@@ -121,7 +121,7 @@ def test_skill_match_empty_inputs_do_not_crash():
         "coverage_score": 0,
         "covered": [],
         "missing": [],
-        "method": "tf-idf cosine",
+        "method": "keyword term coverage",
     }
     empty_cv = skill_match(["Python"], "")
     assert empty_cv["coverage_score"] == 0

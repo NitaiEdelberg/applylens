@@ -7,7 +7,7 @@ An AI copilot for the job hunt. Paste a job description and your CV, and ApplyLe
 3. **Tailors** resume bullets + a cover letter, **grounded** in your real CV
 4. **Guards against fabrication** — a grounding check flags any generated claim your CV doesn't support
 5. **Grounds the cover letter too** — it extracts only the letter's factual claims about your background and checks those against your CV (boilerplate like greetings and "I'm excited to apply" is never flagged)
-6. **Adds a deterministic ML second opinion** — a CPU-only scikit-learn TF-IDF + cosine "keyword coverage" signal scores which extracted requirements the CV covers vs. misses, independent of (and complementing) the LLM's semantic fit score
+6. **Adds a deterministic ML second opinion** — a CPU-only scikit-learn keyword-coverage signal checks which of the job's requirement terms actually appear in the CV (covered vs. missing), independent of (and complementing) the LLM's semantic fit score
 7. **Tailors from your whole career (optional RAG)** — paste a longer career history (extra roles, projects, a brag doc) and, per job, a **LangChain** retrieval chain surfaces the most relevant real experiences; tailoring draws on that fuller background while the guardrail grounds against **CV + retrieved chunks** (so a bullet backed by a real retrieved experience is legitimately verified, and anything in neither is still flagged)
 
 ![ApplyLens — the grounding guardrail verifying each tailored bullet against the CV, with a measured-accuracy trust badge](docs/screenshot.png)
@@ -35,7 +35,7 @@ evals/run_evals.py     grounding guardrail → accuracy + fabrication precision/
 
 ## Tech stack
 
-**Backend:** Python · FastAPI · httpx · Groq (`llama-3.3-70b-versatile`) · scikit-learn (deterministic TF-IDF skill-match signal) · LangChain (`langchain-core` retrieval chain for the optional RAG career corpus) · SQLAlchemy (accounts + cloud tracker; SQLite locally, Postgres in prod) · passlib/bcrypt + PyJWT (auth)
+**Backend:** Python · FastAPI · httpx · Groq (`llama-3.3-70b-versatile`) · scikit-learn (deterministic keyword-coverage skill-match + RAG TF-IDF fallback embedder) · LangChain (`langchain-core` retrieval chain for the optional RAG career corpus) · SQLAlchemy (accounts + cloud tracker; SQLite locally, Postgres in prod) · passlib/bcrypt + PyJWT (auth)
 **Frontend:** React + Vite
 **Evals:** labeled JSONL dataset + a runnable scorer
 
@@ -88,7 +88,7 @@ is a scheduled GitHub Action that pings `GET /api/keepalive` every 3 days.
 | `POST /api/extract` | `{jd_text}` | structured requirements |
 | `POST /api/fit` | `{jd_text, cv_text}` | `overall_score`, matched/partial/missing, summary |
 | `POST /api/tailor` | `{jd_text, cv_text}` | `bullets`, `cover_letter`, `grounding[]`, `flagged_count`, `cover_grounding[]`, `cover_flagged_count` |
-| `POST /api/analyze` | `{jd_text, cv_text, career_text?}` | `{job, fit, tailor, skill_match, rag}` — runs extraction/fit/tailoring concurrently, then adds a deterministic (non-LLM) TF-IDF `skill_match` signal. When optional `career_text` is present, RAG retrieves the top-k relevant career chunks and tailoring grounds against CV + chunks; `rag` = `{used, chunks[], source}` (`used:false` when omitted) |
+| `POST /api/analyze` | `{jd_text, cv_text, career_text?}` | `{job, fit, tailor, skill_match, rag}` — runs extraction/fit/tailoring concurrently, then adds a deterministic (non-LLM) keyword-coverage `skill_match` signal. When optional `career_text` is present, RAG retrieves the top-k relevant career chunks and tailoring grounds against CV + chunks; `rag` = `{used, chunks[], source}` (`used:false` when omitted) |
 | `POST /api/regenerate-bullet` | `{jd_text, cv_text, bullet, issue}` | `{bullet, grounding}` — self-correcting loop: regenerate one flagged bullet conditioned on its failure reason, then independently re-verify it |
 | `POST /api/auth/register` | `{email, password}` | `{token, email}` — creates an account (bcrypt-hashed password) and returns a JWT |
 | `POST /api/auth/login` | `{email, password}` | `{token, email}` — returns a JWT |

@@ -1,4 +1,4 @@
-// Deterministic TF-IDF keyword-coverage signal — a non-LLM second opinion shown
+// Deterministic keyword-coverage signal — a non-LLM second opinion shown
 // next to the LLM Fit score. Renders a compact coverage ring plus covered
 // (green) / missing (red) requirement chips. Renders nothing if the signal is
 // absent (older saved analyses won't have it), so the layout never breaks.
@@ -81,8 +81,9 @@ export default function SkillCoverage({ skillMatch }) {
             )}
           </p>
           <p className="skillcov__caption">
-            Deterministic TF-IDF keyword coverage — a non-LLM second opinion next
-            to the AI fit score.
+            Deterministic keyword coverage (scikit-learn) — checks which of the
+            job's requirement terms actually appear in your CV. A non-LLM second
+            opinion next to the AI fit score.
           </p>
         </div>
       </div>
