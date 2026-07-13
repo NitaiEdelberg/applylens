@@ -5,18 +5,27 @@ from ..llm import chat_json
 from .grounding import check_grounding, check_cover_letter
 
 SYSTEM = (
-    "You tailor a candidate's real experience to a target job. "
-    "CRITICAL: use ONLY facts present in the CV. Never invent skills, tools, "
-    "employers, titles, or metrics. Respond with JSON only."
+    "You are an expert resume writer. You TAILOR a candidate's real experience to a "
+    "specific target job: you reframe, rephrase, reorder, and emphasize their CV so "
+    "it speaks directly to what THIS job asks for. You must stay truthful — every "
+    "claim must be grounded in the CV — but you must NOT simply copy CV sentences: "
+    "adapt them to the job. Respond with JSON only."
 )
 
 
 async def tailor(jd_text: str, cv_text: str) -> dict:
-    prompt = f"""Using ONLY what is in the CV, write:
-- bullets: 4-6 resume bullet strings tailored to this job (impact-oriented, start with a verb)
-- cover_letter: a short 3-paragraph cover letter
+    prompt = f"""Write 4-6 tailored resume bullets and a short 3-paragraph cover letter for THIS job, drawing only on the candidate's CV.
 
-Do not claim any skill, tool, employer, or number that is not in the CV.
+TAILORING (target the job, but only by re-expressing what the CV already says):
+- REFRAME, don't copy: reword the candidate's real experience with stronger verbs, tighter phrasing, and emphasis aimed at this job. Do NOT repeat CV sentences verbatim.
+- Prioritize & reorder: lead with the CV experience this job cares about most; put the most job-relevant bullets first.
+- Use the job's terminology ONLY where the CV genuinely describes that same skill/experience.
+
+STAY VERIFIABLE (non-negotiable — every bullet is fact-checked against the CV):
+- Same facts as the CV, re-expressed — NOT new claims. Each phrase must be verifiable against the CV.
+- Do NOT add skills, tools, or technologies the job wants but the CV lacks (e.g. don't claim "REST APIs" if the CV never mentions them).
+- Do NOT add embellishments, outcomes, or adjectives the CV doesn't state (no "scalable", "seamless", "engaging", "drove business value", invented metrics, etc.).
+- If in doubt, prefer a faithful rewording over an impressive-sounding claim.
 
 JOB:
 \"\"\"{jd_text}\"\"\"
