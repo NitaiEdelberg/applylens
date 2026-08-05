@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ApplyLens">
+  <!-- Favicons render at 16px, so this is built from three heavy shapes and
+       nothing else: a rounded tile, a lens ring, and a handle. Thin strokes and
+       inner detail turn to mush at that size. -->
+  <rect width="64" height="64" rx="14" fill="#0c0e0e"/>
+  <!-- The lens, sitting slightly high-left to leave room for the handle. -->
+  <circle cx="27" cy="26" r="13" fill="none" stroke="#14b8a6" stroke-width="6"/>
+  <!-- Handle, angled 45 degrees so it reads as a magnifier even when tiny. -->
+  <path d="M37 36 L50 49" stroke="#5eead4" stroke-width="7" stroke-linecap="round"/>
+</svg>
