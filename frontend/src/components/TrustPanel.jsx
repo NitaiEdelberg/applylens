@@ -52,7 +52,7 @@ export default function TrustPanel() {
         </div>
       </div>
       <p className="trust__note">
-        Measured on a small labeled set — the guardrail is graded on how reliably it
+        Measured on a small labeled set. The guardrail is graded on how reliably it
         flags fabricated resume claims. A raw chat gives you vibes; this gives you a
         number. See <code>evals/</code> for the harness.
       </p>

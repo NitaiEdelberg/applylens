@@ -40,7 +40,7 @@ function normalizeCloudApp(a) {
   }
 }
 
-const SAMPLE_JD = `Senior Backend Engineer — Payments
+const SAMPLE_JD = `Senior Backend Engineer, Payments
 
 We're hiring a backend engineer to own our payments platform. You will design and ship high-throughput APIs, work closely with product, and keep our ledger correct.
 
@@ -110,7 +110,7 @@ function EmptyState() {
       <p className="empty__title">How it works</p>
       <p className="empty__hint">
         Paste a job + your CV → we extract requirements, score your fit, and tailor
-        grounded bullets — flagging anything your CV doesn't support.
+        grounded bullets, flagging anything your CV doesn't support.
       </p>
     </div>
   )
@@ -146,8 +146,8 @@ function RagNote({ rag }) {
     <div className="card rag" aria-label="Retrieved career history">
       <p className="rag__head">
         🔎 RAG: pulled {chunks.length} relevant experience
-        {chunks.length === 1 ? '' : 's'} from your career history (via {src}) —
-        tailoring is grounded against these plus your CV.
+        {chunks.length === 1 ? '' : 's'} from your career history (via {src}).
+        Tailoring is grounded against these plus your CV.
       </p>
       <ul className="rag__list">
         {chunks.map((c, i) => (
@@ -485,7 +485,7 @@ export default function App() {
         <div className="header__brand">
           <h1 className="wordmark">ApplyLens</h1>
           <p className="tagline">
-            Tailor your CV to any job — with a guardrail that never lets it lie.
+            Tailor your CV to any job, with a guardrail that never lets it lie.
           </p>
         </div>
         <div className="header__slot">
@@ -573,7 +573,7 @@ export default function App() {
                     {uploading ? 'Reading…' : 'Upload PDF/DOCX'}
                   </button>
                   <span className="upload__hint">
-                    {uploadName ? uploadName : 'or drop a file here — or paste below'}
+                    {uploadName ? uploadName : 'or drop a file here, or paste below'}
                   </span>
                 </div>
                 {uploadError && (
@@ -599,13 +599,13 @@ export default function App() {
                   <span className="career__caret" aria-hidden="true">
                     {careerOpen ? '▾' : '▸'}
                   </span>
-                  Career history (optional — deeper tailoring)
+                  Career history (optional, deeper tailoring)
                   {!careerOpen && career.trim() ? ' ✓' : ''}
                 </button>
                 {careerOpen && (
                   <>
                     <p className="career__hint">
-                      Paste a fuller background — extra roles, projects, a brag doc.
+                      Paste a fuller background: extra roles, projects, a brag doc.
                       For each job we retrieve the most relevant pieces (RAG) and
                       tailor from them while keeping every bullet grounded.
                     </p>
@@ -642,7 +642,7 @@ export default function App() {
                   <div className="waking__body">
                     <p className="waking__title">Waking up the analysis server…</p>
                     <p className="waking__hint">
-                      Free tier — the first request can take ~40s while the server
+                      Free tier. The first request can take ~40s while the server
                       spins up. Hang tight, this only happens once.
                     </p>
                   </div>
@@ -691,7 +691,7 @@ export default function App() {
           <section className="panel" aria-label="Saved applications">
             {token ? (
               <p className="tracker__source">
-                ☁️ Synced to your account — available on any device.
+                ☁️ Synced to your account, available on any device.
               </p>
             ) : (
               <p className="tracker__source">

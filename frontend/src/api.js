@@ -91,7 +91,7 @@ async function postWithRetry(path, body, { onRetry } = {}) {
 
 function friendlyMessage(err) {
   if (isTransient(err)) {
-    return "We couldn't reach the analysis server. It may still be waking up on the free tier — please try again in a moment."
+    return "We couldn't reach the analysis server. It may still be waking up on the free tier, please try again in a moment."
   }
   // Application-level error carrying a server-provided detail.
   const msg = err && err.message ? String(err.message) : ''
@@ -130,7 +130,7 @@ export async function parseResume(file) {
   } catch (err) {
     throw new Error(
       isTransient(err)
-        ? "We couldn't reach the server to read your file. It may be waking up — try again in a moment."
+        ? "We couldn't reach the server to read your file. It may be waking up, try again in a moment."
         : 'Something went wrong reading your file. Please try again or paste your CV.',
     )
   }
@@ -175,7 +175,7 @@ async function jsonRequest(path, { method = 'GET', body, token } = {}) {
   } catch (err) {
     throw new Error(
       isTransient(err)
-        ? "We couldn't reach the server. It may be waking up on the free tier — try again in a moment."
+        ? "We couldn't reach the server. It may be waking up on the free tier, try again in a moment."
         : 'Something went wrong. Please try again.',
     )
   }

@@ -6,12 +6,12 @@ export default function Footer() {
   return (
     <footer className="footer">
       <p className="footer__line">
-        Anonymous by default — your CV and analyses stay in your browser unless you sign in.{' '}
+        Anonymous by default. Your CV and analyses stay in your browser unless you sign in.{' '}
         <button type="button" className="linkbtn" onClick={() => setOpen(true)}>
           Privacy &amp; data
         </button>
       </p>
-      <p className="footer__meta">ApplyLens — a personal project, provided as-is.</p>
+      <p className="footer__meta">ApplyLens, a personal project, provided as-is.</p>
 
       {open && (
         <div className="modal" role="dialog" aria-modal="true">
@@ -26,7 +26,7 @@ export default function Footer() {
             <div className="privacy">
               <p>
                 <strong>Anonymous by default.</strong> If you don't sign in, your CV, job
-                descriptions, and analyses are kept only in your browser (localStorage) —
+                descriptions, and analyses are kept only in your browser (localStorage),
                 they are never stored on our servers, and clearing your browser data removes them.
               </p>
               <p>

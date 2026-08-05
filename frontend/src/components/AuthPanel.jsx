@@ -46,7 +46,7 @@ export default function AuthPanel({ onClose, onAuthed }) {
           </button>
         </div>
         <p className="modal__sub">
-          Optional — sign in to sync your tracker across devices. You can keep
+          Optional. Sign in to sync your tracker across devices, or keep
           using ApplyLens without an account.
         </p>
         <form className="authform" onSubmit={submit}>

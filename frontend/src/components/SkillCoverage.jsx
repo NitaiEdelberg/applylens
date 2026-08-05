@@ -81,7 +81,7 @@ export default function SkillCoverage({ skillMatch }) {
             )}
           </p>
           <p className="skillcov__caption">
-            Deterministic keyword coverage (scikit-learn) — checks which of the
+            Deterministic keyword coverage (scikit-learn). Checks which of the
             job's requirement terms actually appear in your CV. A non-LLM second
             opinion next to the AI fit score.
           </p>
