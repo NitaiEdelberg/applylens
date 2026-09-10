@@ -51,6 +51,11 @@ FALLBACK_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
 TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "45"))
 MAX_ATTEMPTS = int(os.getenv("LLM_MAX_ATTEMPTS", "3"))
 BACKOFF_BASE = float(os.getenv("LLM_BACKOFF_SECONDS", "0.75"))
+# Groq answers a rate limit with the exact wait it wants ("try again in 47s").
+# Honouring that is right for a batch job and wrong for a web request, where a
+# person is watching a spinner: past a few seconds, moving to another model
+# beats waiting. Batch scripts raise this; the web path must not.
+MAX_RETRY_WAIT = float(os.getenv("LLM_MAX_RETRY_WAIT", "6"))
 
 # The first model that answered, remembered so the rest of the process skips
 # the dead ones instead of paying a failed round-trip per call.
@@ -102,6 +107,20 @@ def _schema_rejected(status: int, body: str) -> bool:
 def _is_transient(status: int) -> bool:
     """Worth trying the same model again: rate limits and server-side faults."""
     return status == 429 or 500 <= status < 600
+
+
+def _daily_cap(status: int, body: str) -> bool:
+    """A 429 that will not clear today, whatever it says about seconds.
+
+    Groq meters tokens per model per DAY as well as per minute, and the daily
+    refusal arrives wearing the same 429 as a per-minute one, carrying a retry
+    hint of a few seconds that is simply wrong. Retrying it burns the request;
+    the only useful move is the next model, which has its own daily budget.
+    """
+    if status != 429:
+        return False
+    body = body.lower()
+    return "per day" in body or "tpd" in body
 
 
 # Groq says exactly how long to wait ("Please try again in 2.58s"). Guessing an
@@ -209,14 +228,22 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
                     _schema_supported = False
                     continue
 
+                # A day's budget does not come back in seconds. Skip the
+                # retries and spend the request on a model that still has one.
+                if _daily_cap(resp.status_code, text):
+                    break
+
                 if _is_transient(resp.status_code):
                     # A rate limit means we are asking too fast, not that the
                     # upstream is broken: counting it as a breaker failure would
                     # take the app down during its busiest minute.
                     if resp.status_code != 429:
                         _breaker.record_failure()
+                    asked = _retry_after(resp.headers, text)
+                    if asked and asked > MAX_RETRY_WAIT:
+                        break  # longer than a person waits: next model, now
                     if attempt < MAX_ATTEMPTS:
-                        await _backoff(attempt, _retry_after(resp.headers, text))
+                        await _backoff(attempt, asked)
                         continue
                     break
 
@@ -240,7 +267,7 @@ async def _backoff(attempt: int, asked_for=None) -> None:
     they retry in lockstep and hit the same limit together.
     """
     if asked_for:
-        await asyncio.sleep(min(asked_for + 0.25, 60) * (1 + 0.1 * random.random()))
+        await asyncio.sleep(min(asked_for + 0.25, MAX_RETRY_WAIT) * (1 + 0.1 * random.random()))
         return
     delay = BACKOFF_BASE * (2 ** (attempt - 1))
     await asyncio.sleep(delay * (0.5 + random.random()))

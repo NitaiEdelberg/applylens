@@ -229,12 +229,83 @@ def test_a_retry_after_header_wins_over_the_message(monkeypatch):
     def handler(request):
         if len(slept) >= 1:
             return _ok()
-        return httpx.Response(429, headers={"retry-after": "12"},
+        return httpx.Response(429, headers={"retry-after": "5"},
                               json={"error": {"message": "try again in 1s"}})
 
     monkeypatch.setattr(llm, "GROQ_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setattr(llm, "MAX_RETRY_WAIT", 6)
     monkeypatch.setattr(llm.httpx, "AsyncClient", _fake_groq(handler))
     monkeypatch.setattr(llm.asyncio, "sleep", fake_sleep)
 
     asyncio.run(llm.chat([{"role": "user", "content": "hi"}]))
-    assert slept[0] >= 12
+    assert slept[0] >= 5, "the header's 5s beats the message's 1s"
+
+
+def test_a_daily_cap_moves_straight_to_the_next_model(monkeypatch):
+    """The failure that took production down while a person watched a spinner.
+
+    Groq's daily token cap arrives as a 429 carrying a retry hint of a few
+    seconds, which is wrong: the budget resets tomorrow, not in 45 seconds.
+    Retrying it burned the whole request, three attempts deep, on a model that
+    could not answer today.
+    """
+    tried = []
+
+    def handler(request):
+        model = json.loads(request.content)["model"]
+        tried.append(model)
+        if model == "openai/gpt-oss-120b":
+            return httpx.Response(429, json={"error": {"message":
+                "Rate limit reached for model `openai/gpt-oss-120b` on tokens per day "
+                "(TPD): Limit 200000, Used 199996. Please try again in 31.9s."}})
+        return _ok()
+
+    monkeypatch.setattr(llm, "GROQ_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setattr(llm.httpx, "AsyncClient", _fake_groq(handler))
+
+    assert asyncio.run(llm.chat([{"role": "user", "content": "hi"}])) == '{"ok": true}'
+    assert tried == ["openai/gpt-oss-120b", "openai/gpt-oss-20b"], \
+        "one try on the exhausted model, then the one with budget left"
+
+
+def test_a_long_wait_is_not_honoured_in_a_web_request(monkeypatch):
+    slept = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    def handler(request):
+        model = json.loads(request.content)["model"]
+        if model == "openai/gpt-oss-120b":
+            return httpx.Response(429, headers={"retry-after": "47"},
+                                  json={"error": {"message": "slow down"}})
+        return _ok()
+
+    monkeypatch.setattr(llm, "GROQ_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setattr(llm, "MAX_RETRY_WAIT", 6)
+    monkeypatch.setattr(llm.httpx, "AsyncClient", _fake_groq(handler))
+    monkeypatch.setattr(llm.asyncio, "sleep", fake_sleep)
+
+    asyncio.run(llm.chat([{"role": "user", "content": "hi"}]))
+    assert not slept, "a 47-second wait is not something to do while someone watches"
+
+
+def test_a_short_wait_is_still_honoured(monkeypatch):
+    slept = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    def handler(request):
+        if slept:
+            return _ok()
+        return httpx.Response(429, headers={"retry-after": "2"},
+                              json={"error": {"message": "slow down"}})
+
+    monkeypatch.setattr(llm, "GROQ_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setattr(llm, "MAX_RETRY_WAIT", 6)
+    monkeypatch.setattr(llm.httpx, "AsyncClient", _fake_groq(handler))
+    monkeypatch.setattr(llm.asyncio, "sleep", fake_sleep)
+
+    asyncio.run(llm.chat([{"role": "user", "content": "hi"}]))
+    assert slept and slept[0] <= 6.6, "short waits are worth taking"

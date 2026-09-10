@@ -47,6 +47,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "backend"))
 os.environ.setdefault("LLM_MAX_ATTEMPTS", "6")
 os.environ.setdefault("LLM_BACKOFF_SECONDS", "4")
 os.environ.setdefault("LLM_TIMEOUT_SECONDS", "90")
+os.environ.setdefault("LLM_MAX_RETRY_WAIT", "60")
 
 from src import llm  # noqa: E402
 from src.llm import LLMError, chat_json  # noqa: E402

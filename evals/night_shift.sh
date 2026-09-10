@@ -19,6 +19,11 @@ PY=backend/.venv/bin/python
 # client would fall through to it anyway; naming it saves three wasted attempts
 # on every call.
 export GROQ_MODEL="${GROQ_MODEL:-openai/gpt-oss-20b}"
+
+# Nobody is watching a spinner here, so this job may wait out a rate limit
+# properly. The web path caps the same wait at six seconds, because there a
+# person IS watching, and waiting 47 seconds for one model beats nothing.
+export LLM_MAX_RETRY_WAIT="${LLM_MAX_RETRY_WAIT:-60}"
 LOG=evals/corpus/night_shift.log
 
 say() { echo "$(date +%H:%M:%S) $*" | tee -a "$LOG"; }
