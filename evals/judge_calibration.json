@@ -1,0 +1,46 @@
+{
+  "dataset_vs_human": {
+    "n": 58,
+    "agreement": 0.9310344827586207,
+    "kappa": 0.8600723763570567,
+    "precision": 1.0,
+    "recall": 0.8857142857142857,
+    "f1": 0.9393939393939393,
+    "missed_fabrications": 4,
+    "false_flags": 0
+  },
+  "unsure": 0,
+  "judge_vs_human": {
+    "n": 58,
+    "agreement": 0.896551724137931,
+    "kappa": 0.7870257037943696,
+    "precision": 0.9393939393939394,
+    "recall": 0.8857142857142857,
+    "f1": 0.9117647058823529,
+    "missed_fabrications": 4,
+    "false_flags": 2
+  },
+  "tags_labelled": {
+    "original": 20,
+    "plain": 4,
+    "reframed": 2,
+    "wrong_employer": 2,
+    "wrong_role": 1,
+    "inflated_role": 2,
+    "invented_metric": 2,
+    "metric_in_cv": 1,
+    "inflated_tenure": 1,
+    "from_the_jd": 3,
+    "adjacent_tool": 2,
+    "category_from_tool": 2,
+    "unsupported_category": 1,
+    "embellishment": 2,
+    "education": 2,
+    "half_true": 2,
+    "robustness_pdf": 3,
+    "robustness_hebrew": 3,
+    "robustness_injection": 1,
+    "vague": 1,
+    "vague_but_true": 1
+  }
+}

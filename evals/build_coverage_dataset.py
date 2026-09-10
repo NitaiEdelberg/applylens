@@ -128,9 +128,14 @@ class Pacer:
     estimated at four characters each, which is close enough for pacing.
     """
 
-    def __init__(self, tokens_per_minute=6500):
+    def __init__(self, tokens_per_minute=6500, run_budget=None):
         self.budget = tokens_per_minute
-        self.spent = []  # (timestamp, tokens)
+        self.spent = []  # [timestamp, tokens]
+        # Groq's free tier also caps tokens PER DAY, per model. A batch job that
+        # spends the whole day's allowance leaves the live site with none, so a
+        # run gets its own ceiling and stops cleanly when it reaches it.
+        self.run_budget = run_budget
+        self.run_total = 0
 
     def _prune(self, now):
         self.spent = [entry for entry in self.spent if now - entry[0] < 60]
@@ -164,13 +169,18 @@ class Pacer:
         if total and self.spent:
             self.spent[-1][1] = total
             self.last_actual = total
+            self.run_total += total
+
+    def run_exhausted(self):
+        return self.run_budget is not None and self.run_total >= self.run_budget
 
 
 def estimate_tokens(*texts, expected_output=350):
     return sum(len(t or "") for t in texts) // 4 + expected_output
 
 
-PACER = Pacer(int(os.getenv("BUILD_TPM_BUDGET", "3000")))
+PACER = Pacer(int(os.getenv("BUILD_TPM_BUDGET", "3000")),
+              run_budget=int(os.getenv("BUILD_TOKEN_BUDGET", "0")) or None)
 GROQ_MODEL_HINT = os.getenv("GROQ_MODEL", "unknown")
 
 
@@ -422,8 +432,15 @@ async def label_pairs(pairs, cvs, batch_size=8, pause=0.2):
 
     labelled = 0
     for cv_key, items in by_cv.items():
+        if PACER.run_exhausted():
+            break
         cv_text = cvs[cv_key]
         for start in range(0, len(items), batch_size):
+            if PACER.run_exhausted():
+                log("stopping: this run's token budget ({}) is spent, leaving the "
+                    "rest of the day's allowance for the live site. Re-run "
+                    "tomorrow to continue where this left off.".format(PACER.run_budget))
+                break
             batch = items[start:start + batch_size]
             try:
                 verdicts = await label_batch(cv_text, batch)

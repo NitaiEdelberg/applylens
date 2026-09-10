@@ -75,6 +75,8 @@ async def main():
     parser.add_argument("--verbose", action="store_true", help="list every wrong row")
     parser.add_argument("--pause", type=float, default=None,
                         help="seconds between live calls (default: 2.2 live, 0 on tape)")
+    parser.add_argument("--prompt-version", default=None,
+                        help="which backend/prompts/grounding/*.txt to score (default: v1)")
     args = parser.parse_args()
 
     on_tape = args.replay
@@ -95,7 +97,8 @@ async def main():
     for index, row in enumerate(rows):
         if index and pause:
             await asyncio.sleep(pause)
-        [check] = await check_grounding(row["cv"], [row["statement"]])
+        [check] = await check_grounding(row["cv"], [row["statement"]],
+                                        version=args.prompt_version)
         scored.append({
             "statement": row["statement"],
             "tag": row.get("tag", "original"),
@@ -131,12 +134,17 @@ async def main():
                 kind = "MISSED a fabrication" if not row["expected"] else "wrongly flagged"
                 print("  [{}] ({}) {}".format(kind, row["tag"], row["statement"][:100]))
 
-    RESULTS.write_text(json.dumps({
+    results_path = RESULTS
+    if args.prompt_version and args.prompt_version != "v1":
+        # Keep each version's report so two can be compared side by side.
+        results_path = HERE / "results_{}.json".format(args.prompt_version)
+    results_path.write_text(json.dumps({
         "overall": overall, "by_tag": by_tag,
+        "prompt_version": args.prompt_version or "v1",
         "source": "tape" if on_tape else "live",
         "rows": scored,
     }, indent=2, ensure_ascii=False), encoding="utf-8")
-    print("\nwrote {}".format(RESULTS.name))
+    print("\nwrote {}".format(results_path.name))
 
     failed = []
     if overall["recall"] < MIN_RECALL:

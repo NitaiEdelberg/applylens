@@ -7,16 +7,12 @@ from __future__ import annotations
 
 import json
 from ..llm import chat_json
+from ..prompts import render
 from .untrusted import GUARD, as_data
 
-SYSTEM = (
-    "You are a strict fact-checker that prevents resume fabrication. "
-    "A statement is SUPPORTED only if the CV contains evidence for every specific "
-    "claim it makes (skill, tool, employer, title, metric). If any part is not in "
-    "the CV, it is NOT supported. Respond with JSON only. " + GUARD
-)
-
-
+# The grounding prompt lives in backend/prompts/grounding/*.txt: it is the
+# guardrail's whole behaviour, so a change to it is an experiment with a
+# measured before and after, not an edit. PROMPT_GROUNDING_VERSION picks one.
 CHECKS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -34,22 +30,17 @@ CHECKS_SCHEMA = {
 }
 
 
-async def check_grounding(cv_text: str, statements: list[str]) -> list[dict]:
+async def check_grounding(cv_text: str, statements: list, version: str = None) -> list:
     if not statements:
         return []
-    prompt = f"""For each candidate statement, decide if the CV supports it.
-Return JSON: {{"checks": [{{"statement": str, "supported": bool,
-"evidence": str or null, "issue": str or null}}]}}
-- evidence: the CV text that backs it (when supported)
-- issue: what specifically is unsupported/invented (when not supported)
-
-CV:
-{as_data("CV", cv_text)}
-
-STATEMENTS:
-{json.dumps(statements, ensure_ascii=False)}"""
+    system, prompt = render(
+        "grounding", version,
+        guard=GUARD,
+        cv=as_data("CV", cv_text),
+        statements=json.dumps(statements, ensure_ascii=False),
+    )
     data = await chat_json(
-        [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
+        [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
         temperature=0.0,
         schema=CHECKS_SCHEMA,
     )

@@ -25,21 +25,43 @@ say() { echo "$(date +%H:%M:%S) $*" | tee -a "$LOG"; }
 
 say "=== night shift start ==="
 
-say "[1/4] building the labelled coverage dataset"
-$PY evals/build_coverage_dataset.py --pairs 1200 --test-size 150 --jds 45 --skip-harvest \
-  >> "$LOG" 2>&1
-say "[1/4] done: $(wc -l < evals/coverage_train.jsonl) training rows"
-
-say "[2/4] recording the grounding eval tape (95 rows)"
+# The tape goes FIRST. It is the CI gate, it is bounded at about 70k tokens,
+# and the dataset can always be continued tomorrow while a half-recorded tape
+# is worth nothing.
+say "[1/4] recording the grounding eval tape (95 rows)"
 $PY evals/run_evals.py --record --pause 3 >> "$LOG" 2>&1
-say "[2/4] done: $(wc -l < evals/cassettes/grounding.jsonl 2>/dev/null || echo 0) recordings"
+say "[1/4] done: $(wc -l < evals/cassettes/grounding.jsonl 2>/dev/null || echo 0) recordings"
+
+# Then the dataset, with its own token ceiling so the live site still has
+# allowance in the morning. Resumable: tomorrow's run continues from here.
+say "[2/4] building the labelled coverage dataset (token budget: ${BUILD_TOKEN_BUDGET:-90000})"
+BUILD_TOKEN_BUDGET="${BUILD_TOKEN_BUDGET:-90000}" \
+  $PY evals/build_coverage_dataset.py --pairs 1200 --test-size 150 --jds 45 --skip-harvest \
+  >> "$LOG" 2>&1
+say "[2/4] done: $(wc -l < evals/coverage_train.jsonl) training rows"
 
 say "[3/4] training the coverage model"
 $PY evals/train_coverage_model.py >> "$LOG" 2>&1
 say "[3/4] done"
 
-say "[4/4] A/B: tailoring prompt v1 against v2"
-$PY evals/run_prompt_ab.py --pause 20 >> "$LOG" 2>&1
-say "[4/4] done"
+# The A/B is the most expensive step by far (two full tailoring runs, each six
+# model calls, over twelve cases) and it is the least urgent. It runs only when
+# explicitly asked for, so it cannot eat the allowance the site needs.
+if [ "${RUN_PROMPT_AB:-0}" = "1" ]; then
+  say "[4/4] A/B: tailoring prompt v1 against v2"
+  $PY evals/run_prompt_ab.py --pause 20 >> "$LOG" 2>&1
+  say "[4/4] done"
+else
+  say "[4/4] skipped the prompt A/B: it costs more tokens than a day's free"
+  say "      allowance can spare. Run it with RUN_PROMPT_AB=1 when the budget resets."
+fi
 
 say "=== night shift finished ==="
+
+# Added after the first human labelling pass: score the tightened grounding
+# prompt against the same rows, so "v2 is better" is a number and not a hunch.
+if [ "${RUN_GROUNDING_V2:-1}" = "1" ]; then
+  say "[5/5] scoring grounding prompt v2 (specificity rule) against v1"
+  $PY evals/run_evals.py --record --pause 3 --prompt-version v2 >> "$LOG" 2>&1
+  say "[5/5] done"
+fi
