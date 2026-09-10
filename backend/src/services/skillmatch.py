@@ -1,37 +1,238 @@
 """Deterministic, CPU-only skill-coverage signal — a non-LLM second opinion.
 
-For each extracted job requirement, checks how many of its meaningful terms
-actually appear in the CV, using scikit-learn's text analyzer (lowercasing,
-tokenization, English stop-word removal). A requirement is "covered" when at
-least `threshold` of its terms are present in the CV. Deterministic, no LLM, no
-network, no torch — a keyword-coverage heuristic that complements (never
-replaces) the LLM's semantic fit score.
+For each extracted job requirement, this answers "does the CV actually mention
+this?" without asking a model, so the UI can show a signal that disagrees with
+the LLM's fit score on purpose. No LLM, no network, no torch.
 
-Why term overlap and not TF-IDF cosine against the whole CV: cosine between a
-short requirement and a long CV is diluted by the CV's many other terms, so
-genuine matches (e.g. a one-word "JavaScript", or "BSc in Computer Science")
-score below any useful threshold and get wrongly flagged as missing. Checking
-term presence answers "does the CV actually mention this?" directly, accurately,
-and interpretably.
+The first version compared raw tokens, which made it dishonest in the other
+direction: a CV saying "wrote SQL against Snowflake and BigQuery" was scored as
+MISSING "SQL against a cloud warehouse" (snowflake is not the token warehouse),
+and "worked directly with customers" was scored as missing "customer-facing
+experience" (customers is not the token customer). Measured on the labelled
+cases in evals/skillmatch_cases.jsonl, that baseline recalls barely half of the
+requirements a person would call covered.
+
+Three things fix that, in ascending order of how much explaining they need:
+
+1. Filler terms in a requirement ("strong", "3+ years", "experience with") are
+   dropped, so scoring is over the words that carry the requirement.
+2. Every token is expanded to a small set of surface forms (plural, gerund,
+   past tense), and matching is set intersection, so customers == customer.
+3. A named tool is evidence for the category it belongs to: snowflake implies
+   warehouse and sql, fastapi implies python and api. This is directional on
+   purpose — naming Snowflake proves you touched a warehouse, but the word
+   "warehouse" does not prove you have used Snowflake.
+
+Every decision is reported with the evidence term that caused it, so the panel
+can show WHY a requirement counted as covered instead of asking for trust.
 """
+import difflib
+import re
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-_METHOD = "keyword term coverage"
+_METHOD = "term coverage with morphology + tool-to-category evidence"
 
 # One analyzer, reused: lowercases, tokenizes (word chars, len >= 2, so "BSc/MSc"
 # -> "bsc","msc" and "Node.js" -> "node","js"), and strips English stop words.
 _ANALYZE = TfidfVectorizer(stop_words="english").build_analyzer()
 
+# Words that appear in requirements but carry no requirement: scoring "strong
+# Python" over {strong, python} halves the score of a CV that says Python.
+_FILLER = {
+    "ability", "able", "background", "build", "building", "builds",
+    "comfortable", "demonstrated", "deep", "develop", "developing",
+    "excellent", "experience", "experiences", "familiar", "familiarity", "good",
+    "great", "hands", "high", "knowledge", "level", "min", "minimum", "nice",
+    "plus", "preferred", "proficiency", "proficient", "proven", "record",
+    "required", "skill", "skills", "solid", "strong", "track", "understanding",
+    "using", "work", "working", "year", "years",
+}
+
+# A named tool is evidence for the category it belongs to. Directional: the key
+# (what the CV says) implies the values (what the job asked for), never back.
+_IMPLIES = {
+    "snowflake": {"warehouse", "warehousing", "cloud", "sql", "data", "analytics"},
+    "bigquery": {"warehouse", "warehousing", "cloud", "sql", "data", "analytics", "gcp"},
+    "redshift": {"warehouse", "warehousing", "cloud", "sql", "data", "aws"},
+    "databricks": {"warehouse", "warehousing", "cloud", "sql", "data", "spark"},
+    "postgres": {"sql", "database", "rdbms", "relational"},
+    "postgresql": {"sql", "database", "rdbms", "relational"},
+    "mysql": {"sql", "database", "rdbms", "relational"},
+    "sqlite": {"sql", "database", "rdbms", "relational"},
+    "mongodb": {"database", "nosql"},
+    "mongo": {"database", "nosql"},
+    "fastapi": {"python", "api", "apis", "rest", "backend", "web"},
+    "flask": {"python", "api", "apis", "rest", "backend", "web"},
+    "django": {"python", "api", "apis", "rest", "backend", "web"},
+    "pandas": {"python", "data", "analytics"},
+    "numpy": {"python", "data"},
+    "sklearn": {"python", "ml", "machine", "learning"},
+    "scikit": {"python", "ml", "machine", "learning"},
+    "pytorch": {"python", "ml", "machine", "learning", "deep"},
+    "tensorflow": {"python", "ml", "machine", "learning", "deep"},
+    "react": {"frontend", "javascript", "ui", "web"},
+    "vue": {"frontend", "javascript", "ui", "web"},
+    "angular": {"frontend", "typescript", "javascript", "ui", "web"},
+    "node": {"javascript", "backend", "api", "apis", "server"},
+    "nodejs": {"javascript", "backend", "api", "apis", "server"},
+    "express": {"javascript", "backend", "api", "apis", "rest", "server"},
+    "typescript": {"javascript"},
+    "groq": {"llm", "llms", "ai", "genai", "model", "models"},
+    "openai": {"llm", "llms", "ai", "genai", "model", "models"},
+    "anthropic": {"llm", "llms", "ai", "genai", "model", "models"},
+    "claude": {"llm", "llms", "ai", "genai", "model", "models"},
+    "gemini": {"llm", "llms", "ai", "genai", "model", "models"},
+    "gpt": {"llm", "llms", "ai", "genai", "model", "models"},
+    "llama": {"llm", "llms", "ai", "genai", "model", "models"},
+    "langchain": {"llm", "llms", "ai", "genai", "rag", "orchestration"},
+    "rag": {"llm", "llms", "retrieval", "embeddings", "ai"},
+    "embeddings": {"ml", "retrieval", "vector", "nlp"},
+    "fasttext": {"embeddings", "nlp", "ml", "vector"},
+    "prompt": {"llm", "llms", "ai", "genai"},
+    "k8s": {"kubernetes", "containers", "orchestration"},
+    "kubernetes": {"containers", "orchestration", "devops"},
+    "docker": {"containers", "devops"},
+    "terraform": {"iac", "infrastructure", "devops"},
+    "aws": {"cloud", "devops"},
+    "gcp": {"cloud", "devops"},
+    "azure": {"cloud", "devops"},
+    "customer": {"client", "clients", "customers", "facing", "stakeholder", "stakeholders"},
+    "customers": {"client", "clients", "customer", "facing", "stakeholder", "stakeholders"},
+    "client": {"customer", "customers", "clients", "facing", "stakeholder", "stakeholders"},
+    "clients": {"customer", "customers", "client", "facing", "stakeholder", "stakeholders"},
+    "socket": {"realtime", "websockets"},
+    "websocket": {"realtime", "sockets"},
+    "git": {"version", "control"},
+    "pytest": {"testing", "tests", "test", "python"},
+    "vitest": {"testing", "tests", "test", "javascript"},
+    "jest": {"testing", "tests", "test", "javascript"},
+}
+
+# How close two tokens must look before one counts as the other (postgres /
+# postgresql). Deliberately tight: at 0.85 "react" starts matching "retail".
+_FUZZY = 0.92
+
+# Shortest token that may match by prefix. Below this, "go" would cover "gcp".
+_MIN_PREFIX = 4
+# ...and how much of a tail may differ. "java" vs "javascript" is 6, and they
+# are different languages; "node" vs "nodejs" is 2, and they are the same one.
+_MAX_PREFIX_TAIL = 2
+
+# A requirement is often several requirements. Commas and "and" join things that
+# must ALL be present; "or" and "/" offer alternatives where ANY will do.
+_CONJUNCTION = re.compile(r",|\band\b|;", re.IGNORECASE)
+_ALTERNATIVE = re.compile(r"/|\bor\b", re.IGNORECASE)
+
+
+def _parts(requirement: str):
+    """Requirement -> [[alternative, ...], ...]; every group must be covered."""
+    groups = []
+    for conjunct in _CONJUNCTION.split(requirement):
+        alts = [a.strip() for a in _ALTERNATIVE.split(conjunct) if a.strip()]
+        if alts:
+            groups.append(alts)
+    return groups or [[requirement]]
+
+
+def _forms(token: str) -> set:
+    """Surface variants of a token, so customers and customer meet in the middle.
+
+    Returns a SET rather than one canonical stem: a crude stemmer turns facing
+    into fac, which no real word matches, but keeping facing, fac and face in
+    the set means the right one is there whichever side it came from.
+    """
+    out = {token}
+    if len(token) > 4 and token.endswith("ies"):
+        out.add(token[:-3] + "y")
+    if len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
+        out.add(token[:-1])
+    if len(token) > 4 and token.endswith("es"):
+        out.add(token[:-2])
+    if len(token) > 5 and token.endswith("ing"):
+        out.add(token[:-3])
+        out.add(token[:-3] + "e")
+    if len(token) > 4 and token.endswith("ed"):
+        out.add(token[:-2])
+        out.add(token[:-1])
+    return out
+
+
+def _cv_index(cv_text: str):
+    """Everything the CV can be evidence for: forms -> the CV token behind them."""
+    evidence = {}
+    for token in _ANALYZE(cv_text):
+        for form in _forms(token):
+            evidence.setdefault(form, token)
+        for implied in _IMPLIES.get(token, ()):
+            evidence.setdefault(implied, token)
+    return evidence
+
+
+def _match_term(term: str, evidence: dict):
+    """The CV token that covers `term`, or None.
+
+    Exact forms first, then a prefix rule (node/nodejs, postgres/postgresql —
+    difflib scores those at 0.80 and 0.89, below any cutoff that is still safe
+    for short tokens), then fuzzy as a last resort.
+    """
+    for form in _forms(term):
+        if form in evidence:
+            return evidence[form]
+    if len(term) >= _MIN_PREFIX:
+        for known in evidence:
+            if len(known) < _MIN_PREFIX:
+                continue
+            short, long = sorted((term, known), key=len)
+            # Only a short tail may differ (postgres/postgresql, node/nodejs).
+            # Without that bound, java matches javascript.
+            if long.startswith(short) and len(long) - len(short) <= _MAX_PREFIX_TAIL:
+                return evidence[known]
+    close = difflib.get_close_matches(term, list(evidence), n=1, cutoff=_FUZZY)
+    return evidence[close[0]] if close else None
+
+
+def _mentions(needle: str, haystack: str) -> bool:
+    """Whole-token substring search, for requirements with no analyzable terms.
+
+    Bounded on both sides because a plain `in` check reports the requirement
+    "Go" as covered by a CV that only says MongoDB.
+    """
+    return re.search(
+        r"(?<![A-Za-z0-9])" + re.escape(needle.lower()) + r"(?![A-Za-z0-9])",
+        haystack.lower(),
+    ) is not None
+
+
+def _score_one(text: str, cv: str, evidence: dict):
+    """Fraction of `text`'s carrying terms the CV evidences, plus the reasons."""
+    terms = [t for t in dict.fromkeys(_ANALYZE(text)) if t not in _FILLER]
+    if not terms:
+        # All filler, or symbol-only like "C++": fall back to a bounded search.
+        return (1.0, [{"term": text, "evidence": text}], []) if _mentions(text, cv) \
+            else (0.0, [], [text])
+
+    matched, unmatched = [], []
+    for term in terms:
+        hit = _match_term(term, evidence)
+        if hit:
+            matched.append({"term": term, "evidence": hit})
+        else:
+            unmatched.append(term)
+    return len(matched) / len(terms), matched, unmatched
+
 
 def skill_match(requirements: list, cv_text: str, threshold: float = 0.5) -> dict:
-    """Deterministic keyword-term coverage of `requirements` by `cv_text`.
+    """Deterministic coverage of `requirements` by `cv_text`.
 
     Returns:
         {
           "coverage_score": int,      # 0-100 = covered / total * 100
-          "covered": [{"requirement": str, "score": float}],  # sorted high→low
-          "missing": [str],
-          "method": "keyword term coverage",
+          "covered": [{"requirement": str, "score": float,
+                       "matched": [{"term": str, "evidence": str}]}],
+          "missing": [str],                                    # requirement text
+          "missing_detail": [{"requirement": str, "unmatched": [str]}],
+          "method": str,
         }
 
     Empty requirements or an empty CV degrade to a 0 score — never raises.
@@ -43,37 +244,44 @@ def skill_match(requirements: list, cv_text: str, threshold: float = 0.5) -> dic
         return {
             "coverage_score": 0,
             "covered": [],
-            "missing": list(reqs),  # nothing can be covered with an empty CV
+            "missing": list(reqs),
+            "missing_detail": [{"requirement": r, "unmatched": []} for r in reqs],
             "method": _METHOD,
         }
 
-    cv_tokens = set(_ANALYZE(cv))
+    evidence = _cv_index(cv)
 
-    covered = []
-    missing = []
+    covered, missing = [], []
     for req in reqs:
-        terms = set(_ANALYZE(req))
-        if terms:
-            present = sum(1 for t in terms if t in cv_tokens)
-            frac = present / len(terms)
-            is_covered = frac >= threshold
-        else:
-            # Requirement had no analyzable terms (all stop words, or symbol-only
-            # like "C++") — fall back to a case-insensitive substring check.
-            is_covered = req.lower() in cv.lower()
-            frac = 1.0 if is_covered else 0.0
+        # "SQL, Python and Kubernetes" is three requirements wearing one coat:
+        # scoring it as a bag of terms called it covered at 2 of 3. Every
+        # conjunct has to stand on its own; alternatives inside one only need
+        # a single hit.
+        scores, matched, unmatched = [], [], []
+        for alternatives in _parts(req):
+            best = None
+            for alt in alternatives:
+                frac, hits, misses = _score_one(alt, cv, evidence)
+                if best is None or frac > best[0]:
+                    best = (frac, hits, misses)
+            scores.append(best[0])
+            matched.extend(best[1])
+            unmatched.extend(best[2])
 
-        if is_covered:
-            covered.append({"requirement": req, "score": round(frac, 2)})
+        frac = sum(scores) / len(scores)
+        # Every conjunct must clear the bar, not just the average.
+        if all(sc >= threshold for sc in scores):
+            covered.append({"requirement": req, "score": round(frac, 2), "matched": matched})
         else:
-            missing.append(req)
+            missing.append({"requirement": req, "unmatched": unmatched})
 
     covered.sort(key=lambda c: c["score"], reverse=True)
-    coverage_score = int(len(covered) / len(reqs) * 100)
-
     return {
-        "coverage_score": coverage_score,
+        "coverage_score": int(len(covered) / len(reqs) * 100),
         "covered": covered,
-        "missing": missing,
+        # `missing` stays a plain list of requirement strings because that is
+        # what the UI renders; the per-term reasons ride alongside it.
+        "missing": [m["requirement"] for m in missing],
+        "missing_detail": missing,
         "method": _METHOD,
     }

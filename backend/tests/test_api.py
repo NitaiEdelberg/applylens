@@ -104,7 +104,7 @@ def test_skill_match_covers_present_flags_missing():
     assert "Python" in covered
     assert "Kubernetes" in result["missing"]
     assert result["coverage_score"] == 50
-    assert result["method"] == "keyword term coverage"
+    assert "term coverage" in result["method"]
     # covered scores are rounded similarities in [0, 1]
     for c in result["covered"]:
         assert 0.0 <= c["score"] <= 1.0
@@ -117,12 +117,10 @@ def test_skill_match_is_deterministic():
 
 
 def test_skill_match_empty_inputs_do_not_crash():
-    assert skill_match([], "some cv text") == {
-        "coverage_score": 0,
-        "covered": [],
-        "missing": [],
-        "method": "keyword term coverage",
-    }
+    no_reqs = skill_match([], "some cv text")
+    assert no_reqs["coverage_score"] == 0
+    assert no_reqs["covered"] == []
+    assert no_reqs["missing"] == []
     empty_cv = skill_match(["Python"], "")
     assert empty_cv["coverage_score"] == 0
     assert empty_cv["covered"] == []

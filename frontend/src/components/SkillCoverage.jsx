@@ -1,4 +1,4 @@
-// Deterministic keyword-coverage signal — a non-LLM second opinion shown
+// Deterministic coverage signal — a non-LLM second opinion shown
 // next to the LLM Fit score. Renders a compact coverage ring plus covered
 // (green) / missing (red) requirement chips. Renders nothing if the signal is
 // absent (older saved analyses won't have it), so the layout never breaks.
@@ -81,9 +81,11 @@ export default function SkillCoverage({ skillMatch }) {
             )}
           </p>
           <p className="skillcov__caption">
-            Deterministic keyword coverage (scikit-learn). Checks which of the
-            job's requirement terms actually appear in your CV. A non-LLM second
-            opinion next to the AI fit score.
+            Deterministic, no model involved. Checks which requirement terms your
+            CV actually evidences, counting a named tool as evidence for its
+            category (Snowflake covers "cloud warehouse"). Hover a chip to see
+            what matched. A second opinion next to the AI fit score, free to
+            disagree with it.
           </p>
         </div>
       </div>
@@ -95,7 +97,13 @@ export default function SkillCoverage({ skillMatch }) {
               <span
                 className="fitchip fitchip--success"
                 key={`c-${i}`}
-                title={`similarity ${c.score}`}
+                title={
+                  (c.matched || []).length
+                    ? (c.matched || [])
+                        .map((m) => `${m.term} ← ${m.evidence}`)
+                        .join(', ')
+                    : `score ${c.score}`
+                }
               >
                 <span className="fitchip__dot" aria-hidden="true" />
                 <span className="fitchip__label">{c.requirement}</span>

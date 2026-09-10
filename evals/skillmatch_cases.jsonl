@@ -1,0 +1,65 @@
+{"cv_key": "nitai", "requirement": "Strong Python", "covered": true, "why": "CV lists Python"}
+{"cv_key": "nitai", "requirement": "Experience with FastAPI", "covered": true, "why": "CV lists FastAPI"}
+{"cv_key": "nitai", "requirement": "React front-end work", "covered": true, "why": "CV lists React"}
+{"cv_key": "nitai", "requirement": "MongoDB", "covered": true, "why": "CV lists MongoDB"}
+{"cv_key": "devops", "requirement": "Terraform", "covered": true, "why": "CV lists Terraform"}
+{"cv_key": "devops", "requirement": "Kubernetes", "covered": true, "why": "CV lists Kubernetes"}
+{"cv_key": "junior", "requirement": "Git", "covered": true, "why": "CV says comfortable with Git"}
+{"cv_key": "ml", "requirement": "PyTorch", "covered": true, "why": "CV lists PyTorch"}
+{"cv_key": "nitai", "requirement": "Customer-facing experience", "covered": true, "why": "worked directly with customers"}
+{"cv_key": "data", "requirement": "Presenting to stakeholders", "covered": true, "why": "presented findings to stakeholders"}
+{"cv_key": "nitai", "requirement": "Building LLM-powered features", "covered": true, "why": "built LLM-powered features"}
+{"cv_key": "ml", "requirement": "Training models", "covered": true, "why": "trained classifiers"}
+{"cv_key": "devops", "requirement": "Building CI pipelines", "covered": true, "why": "CI pipelines in GitHub Actions"}
+{"cv_key": "ml", "requirement": "Deploying models to production APIs", "covered": true, "why": "deployed models behind Flask APIs"}
+{"cv_key": "nitai", "requirement": "SQL against a cloud warehouse", "covered": true, "why": "SQL on Snowflake and BigQuery"}
+{"cv_key": "data", "requirement": "Cloud data warehouse experience", "covered": true, "why": "Redshift is a cloud warehouse"}
+{"cv_key": "nitai", "requirement": "Backend API development in Python", "covered": true, "why": "FastAPI is a Python API framework"}
+{"cv_key": "nitai", "requirement": "Working with LLMs", "covered": true, "why": "built LLM-powered features"}
+{"cv_key": "devops", "requirement": "Container orchestration", "covered": true, "why": "Kubernetes and Docker"}
+{"cv_key": "devops", "requirement": "Infrastructure as code", "covered": true, "why": "Terraform is IaC"}
+{"cv_key": "devops", "requirement": "Public cloud experience", "covered": true, "why": "AWS accounts and EKS"}
+{"cv_key": "ml", "requirement": "Machine learning frameworks", "covered": true, "why": "PyTorch"}
+{"cv_key": "nitai", "requirement": "Relational databases", "covered": true, "why": "PostgreSQL"}
+{"cv_key": "junior", "requirement": "JavaScript", "covered": true, "why": "React and Express are JavaScript"}
+{"cv_key": "nitai", "requirement": "Semantic search / embeddings", "covered": true, "why": "FastText embeddings"}
+{"cv_key": "data", "requirement": "Python for data analysis", "covered": true, "why": "Python with pandas"}
+{"cv_key": "data", "requirement": "Snowflake", "covered": false, "why": "CV says Redshift, not Snowflake"}
+{"cv_key": "devops", "requirement": "Pulumi", "covered": false, "why": "CV says Terraform, not Pulumi"}
+{"cv_key": "junior", "requirement": "TypeScript", "covered": false, "why": "CV says React, never TypeScript"}
+{"cv_key": "ml", "requirement": "LangChain", "covered": false, "why": "CV never mentions LangChain"}
+{"cv_key": "data", "requirement": "Spark", "covered": false, "why": "CV never mentions Spark"}
+{"cv_key": "nitai", "requirement": "Kubernetes", "covered": false, "why": "never mentioned"}
+{"cv_key": "nitai", "requirement": "Terraform", "covered": false, "why": "never mentioned"}
+{"cv_key": "nitai", "requirement": "Java", "covered": false, "why": "never mentioned"}
+{"cv_key": "nitai", "requirement": "Go", "covered": false, "why": "never mentioned"}
+{"cv_key": "data", "requirement": "Kubernetes and Docker", "covered": false, "why": "never mentioned"}
+{"cv_key": "junior", "requirement": "Snowflake or BigQuery", "covered": false, "why": "never mentioned"}
+{"cv_key": "junior", "requirement": "5+ years of professional backend experience", "covered": false, "why": "junior, no such claim"}
+{"cv_key": "devops", "requirement": "React", "covered": false, "why": "never mentioned"}
+{"cv_key": "devops", "requirement": "Machine learning", "covered": false, "why": "never mentioned"}
+{"cv_key": "ml", "requirement": "Kubernetes", "covered": false, "why": "never mentioned"}
+{"cv_key": "ml", "requirement": "SQL", "covered": false, "why": "never mentioned"}
+{"cv_key": "data", "requirement": "Node.js", "covered": false, "why": "never mentioned"}
+{"cv_key": "nitai", "requirement": "Proven track record of strong hands-on Python development", "covered": true, "why": "Python is there; rest is filler"}
+{"cv_key": "data", "requirement": "Excellent working knowledge of SQL", "covered": true, "why": "daily SQL"}
+{"cv_key": "devops", "requirement": "Solid understanding of Docker", "covered": true, "why": "Docker images"}
+{"cv_key": "ml", "requirement": "3+ years of experience with Python", "covered": true, "why": "strong Python; the years claim is not a skill term"}
+{"cv_key": "junior", "requirement": "Ability to work with Git in a team", "covered": true, "why": "comfortable with Git"}
+{"cv_key": "junior", "requirement": "Deep hands-on experience with Kubernetes", "covered": false, "why": "never mentioned"}
+{"cv_key": "data", "requirement": "Strong background in Terraform", "covered": false, "why": "never mentioned"}
+{"cv_key": "nitai", "requirement": "Excellent knowledge of Rust", "covered": false, "why": "never mentioned"}
+{"cv_key": "junior", "requirement": "C++", "covered": true, "why": "studied C++"}
+{"cv_key": "nitai", "requirement": "C++", "covered": false, "why": "never mentioned"}
+{"cv_key": "devops", "requirement": "CI/CD", "covered": true, "why": "CI pipelines in GitHub Actions"}
+{"cv_key": "nitai", "requirement": "REST APIs", "covered": true, "why": "FastAPI serves REST"}
+{"cv_key": "data", "requirement": "BI dashboards", "covered": true, "why": "dashboards in Looker"}
+{"cv_key": "data", "requirement": "dbt", "covered": true, "why": "some dbt modelling"}
+{"cv_key": "nitai", "requirement": "dbt", "covered": false, "why": "never mentioned"}
+{"cv_key": "nitai", "requirement": "Postgres", "covered": true, "why": "CV says PostgreSQL"}
+{"cv_key": "data", "requirement": "Redshift data warehouse", "covered": true, "why": "CV says Redshift"}
+{"cv_key": "nitai", "requirement": "NodeJS", "covered": true, "why": "CV says Node.js"}
+{"cv_key": "nitai", "requirement": "SQL, Python and Kubernetes", "covered": false, "why": "two of three; Kubernetes missing"}
+{"cv_key": "data", "requirement": "SQL and Python", "covered": true, "why": "both present"}
+{"cv_key": "devops", "requirement": "Terraform, Kubernetes and Docker", "covered": true, "why": "all three present"}
+{"cv_key": "junior", "requirement": "React, Node and PostgreSQL", "covered": false, "why": "no PostgreSQL"}

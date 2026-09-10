@@ -78,16 +78,31 @@ class RegenerateBulletResponse(BaseModel):
 
 
 # ---- deterministic (non-LLM) skill-coverage signal ----
+class MatchedTerm(BaseModel):
+    """Which requirement term was covered, and the CV word that covered it."""
+    term: str
+    evidence: str
+
+
 class CoveredReq(BaseModel):
     requirement: str
     score: float = 0.0
+    matched: List[MatchedTerm] = []
+
+
+class MissingReq(BaseModel):
+    requirement: str
+    unmatched: List[str] = []
 
 
 class SkillMatch(BaseModel):
     coverage_score: int = 0
     covered: List[CoveredReq] = []
+    # Plain requirement strings: what the UI renders. The per-term reasons ride
+    # in missing_detail so the wire shape stays what older clients expect.
     missing: List[str] = []
-    method: str = "tf-idf cosine"
+    missing_detail: List[MissingReq] = []
+    method: str = "term coverage"
 
 
 # ---- RAG over the optional career-history corpus (Circle 4) ----

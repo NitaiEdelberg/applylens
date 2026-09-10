@@ -1,0 +1,7 @@
+{
+  "nitai": "Nitai Edelberg. B.Sc. Computer Science, Ben-Gurion University. AI Solutions Engineer at Jigso: built LLM-powered features and the tooling around them, wrote SQL against Snowflake and BigQuery, worked directly with customers to turn their problems into working solutions. Python, FastAPI, React, Node.js, MongoDB, PostgreSQL. Side projects: a prompt-injection detection API using scikit-learn, a real-time rehearsal app with Socket.IO, a word game built on FastText embeddings.",
+  "data": "Data analyst, 3 years. Daily SQL on Redshift, dashboards in Looker, Python with pandas for ad-hoc analysis. Presented findings to marketing stakeholders every week. Some dbt modelling.",
+  "devops": "Platform engineer. Terraform across AWS accounts, Kubernetes clusters on EKS, Docker images, CI pipelines in GitHub Actions. Go and Bash. On-call rotation.",
+  "junior": "Junior developer. Built a personal website with React and a small Express API. Studied C++ and Java at university. Comfortable with Git.",
+  "ml": "Machine learning engineer. Trained classifiers with PyTorch, fine-tuned transformers on domain text, deployed models behind Flask APIs. Experiment tracking in Weights and Biases. Strong Python."
+}
