@@ -26,6 +26,7 @@ from collections import Counter
 from pathlib import Path
 
 import numpy as np
+from sklearn.base import clone
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import precision_recall_curve
 from sklearn.model_selection import GroupKFold, GridSearchCV
@@ -145,7 +146,10 @@ def main():
     # Out-of-fold scores, so the threshold is not chosen on rows the model fit.
     oof = np.zeros(len(y))
     for train_idx, test_idx in GroupKFold(n_splits=folds).split(X, y, groups):
-        model = grid.best_estimator_.__class__(**grid.best_estimator_.get_params())
+        # clone(), not a fresh construction: a Pipeline cannot be rebuilt from
+        # its own get_params, and re-fitting the fitted estimator would leak
+        # the folds into each other.
+        model = clone(grid.best_estimator_)
         model.fit(X[train_idx], y[train_idx])
         oof[test_idx] = model.predict_proba(X[test_idx])[:, 1]
 
