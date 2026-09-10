@@ -87,9 +87,14 @@ class RegenerateBulletResponse(BaseModel):
 
 # ---- deterministic (non-LLM) skill-coverage signal ----
 class MatchedTerm(BaseModel):
-    """Which requirement term was covered, and the CV word that covered it."""
+    """Which requirement term was covered, the CV word that covered it, and how.
+
+    `how` is one of exact, morphology (customers/customer), category (snowflake
+    covers warehouse), prefix (node/nodejs) or fuzzy.
+    """
     term: str
     evidence: str
+    how: str = "exact"
 
 
 class CoveredReq(BaseModel):

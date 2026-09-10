@@ -159,13 +159,20 @@ def _forms(token: str) -> set:
 
 
 def _cv_index(cv_text: str):
-    """Everything the CV can be evidence for: forms -> the CV token behind them."""
+    """Everything the CV can be evidence for: form -> (CV token, how it matched).
+
+    The "how" is kept because it is the interesting part: a requirement covered
+    because the CV literally says the word is a different kind of match from one
+    covered because the CV names a tool in that category. The UI shows it, and
+    the learned model in evals/train_coverage_model.py uses it as a feature.
+    """
     evidence = {}
     for token in _ANALYZE(cv_text):
+        evidence.setdefault(token, (token, "exact"))
         for form in _forms(token):
-            evidence.setdefault(form, token)
+            evidence.setdefault(form, (token, "morphology"))
         for implied in _IMPLIES.get(token, ()):
-            evidence.setdefault(implied, token)
+            evidence.setdefault(implied, (token, "category"))
     return evidence
 
 
@@ -176,9 +183,12 @@ def _match_term(term: str, evidence: dict):
     difflib scores those at 0.80 and 0.89, below any cutoff that is still safe
     for short tokens), then fuzzy as a last resort.
     """
+    if term in evidence:
+        return evidence[term]
     for form in _forms(term):
         if form in evidence:
-            return evidence[form]
+            token, how = evidence[form]
+            return (token, "morphology" if how == "exact" else how)
     if len(term) >= _MIN_PREFIX:
         for known in evidence:
             if len(known) < _MIN_PREFIX:
@@ -187,9 +197,9 @@ def _match_term(term: str, evidence: dict):
             # Only a short tail may differ (postgres/postgresql, node/nodejs).
             # Without that bound, java matches javascript.
             if long.startswith(short) and len(long) - len(short) <= _MAX_PREFIX_TAIL:
-                return evidence[known]
+                return (evidence[known][0], "prefix")
     close = difflib.get_close_matches(term, list(evidence), n=1, cutoff=_FUZZY)
-    return evidence[close[0]] if close else None
+    return (evidence[close[0]][0], "fuzzy") if close else None
 
 
 def _mentions(needle: str, haystack: str) -> bool:
@@ -216,7 +226,7 @@ def _score_one(text: str, cv: str, evidence: dict):
     for term in terms:
         hit = _match_term(term, evidence)
         if hit:
-            matched.append({"term": term, "evidence": hit})
+            matched.append({"term": term, "evidence": hit[0], "how": hit[1]})
         else:
             unmatched.append(term)
     return len(matched) / len(terms), matched, unmatched
@@ -229,7 +239,7 @@ def skill_match(requirements: list, cv_text: str, threshold: float = 0.5) -> dic
         {
           "coverage_score": int,      # 0-100 = covered / total * 100
           "covered": [{"requirement": str, "score": float,
-                       "matched": [{"term": str, "evidence": str}]}],
+                       "matched": [{"term": str, "evidence": str, "how": str}]}],
           "missing": [str],                                    # requirement text
           "missing_detail": [{"requirement": str, "unmatched": [str]}],
           "method": str,
