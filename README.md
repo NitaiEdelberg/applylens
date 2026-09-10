@@ -15,7 +15,7 @@ An AI copilot for the job hunt. Paste a job description and your CV, and ApplyLe
 It's a **workspace, not a chat box** — three things a raw ChatGPT/Claude paste structurally can't give you:
 - **Trust you can see** — every tailored bullet is labeled *"verified against your CV"* (with the evidence) or *"not supported"* (with the reason). Chat will happily invent "Led a team of 8 at Google"; ApplyLens flags it.
 - **A workflow across many jobs** — analyses are saved to a tracker and moved applied → interviewing → offer. Chat loses everything on refresh.
-- **Measured accuracy** — the guardrail is graded by an eval harness: **100% accuracy / 100% fabrication recall on a labeled set (n=33)**, surfaced in the UI. Chat gives you vibes; this gives you a number.
+- **Measured accuracy** — every claim above has a number behind it, and the numbers are produced by scripts in `evals/` that anyone can run: 95 labelled rows for the guardrail (tagged by the *kind* of fabrication, so the report says which kind slips through), 65 for the deterministic coverage signal, 8 for retrieval. Chat gives you vibes; this gives you a table.
 
 Built as a real tool *and* a showcase of applied-AI engineering: structured LLM extraction, LLM-as-judge scoring, grounded generation, a user-facing anti-hallucination **guardrail**, an **eval harness** with precision/recall, and a polished dark SaaS UI with cold-start-aware UX.
 
@@ -33,11 +33,32 @@ React (Vite)  ──►  FastAPI  ──►  Groq (OpenAI-compatible LLM)
 evals/run_evals.py     grounding guardrail → accuracy + fabrication precision/recall
 ```
 
+Every request also carries a **trace** — stage timings, tokens, and which model
+actually answered — plus the things that keep it up when the model API has a bad
+day: a fallback chain when a model is retired, retries that wait exactly as long
+as the upstream asks, a circuit breaker, an in-process cache for repeat
+analyses, and a per-request budget that drops the cheapest check rather than
+timing out. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the request
+path and [docs/DECISIONS.md](docs/DECISIONS.md) for why it is not built some
+other way.
+
+**Your CV's contact details never leave the server.** Email, phone, ID number,
+street address and social links are replaced with placeholders before inference
+and restored in the results. The job description — untrusted text pasted from a
+website — travels in a delimited block it cannot escape and is screened for
+prompt injection by local patterns and by
+[JailbreakAPI](https://github.com/NitaiEdelberg/JailbreakAPI), which fails open
+so a sleeping detector never blocks an analysis.
+
 ## Tech stack
 
 **Backend:** Python · FastAPI · httpx · Groq (`openai/gpt-oss-120b`, with a fallback to another live model if the id is retired) · scikit-learn (deterministic keyword-coverage skill-match + RAG TF-IDF fallback embedder) · LangChain (`langchain-core` retrieval chain for the optional RAG career corpus) · SQLAlchemy (accounts + cloud tracker; SQLite locally, Postgres in prod) · passlib/bcrypt + PyJWT (auth)
 **Frontend:** React + Vite
-**Evals:** labeled JSONL dataset + a runnable scorer
+**Evals:** labelled JSONL datasets and runnable scorers — the guardrail
+(`run_evals.py`, replayable from a recorded tape so CI needs no key), the
+deterministic coverage signal (`run_skillmatch_eval.py`, a CI gate), retrieval
+recall@k (`run_retrieval_eval.py`), a prompt A/B harness (`run_prompt_ab.py`),
+and judge calibration against human labels (`judge_calibration.py`)
 
 ## Run it
 
@@ -59,9 +80,16 @@ npm run dev                   # http://localhost:5173 (proxies /api to :8000)
 
 **Tests & evals**
 ```bash
-cd backend && pytest                       # smoke + auth/tracker tests (no key/DB needed)
-GROQ_API_KEY=... python evals/run_evals.py # grounding guardrail metrics
+cd backend && pytest                          # 135 tests, no key or DB needed
+python evals/run_skillmatch_eval.py           # coverage signal: P/R against 65 labelled cases
+python evals/run_retrieval_eval.py            # RAG retrieval: recall@k, offline TF-IDF path
+python evals/run_evals.py --replay            # guardrail metrics, replayed from the tape
+GROQ_API_KEY=... python evals/run_evals.py --record   # re-cut the tape after a prompt change
+GROQ_API_KEY=... python evals/run_prompt_ab.py        # score two prompt versions
 ```
+The first four need no key and no network, which is why CI runs them on every
+push. A prompt change means re-recording the tape, and that diff is the point:
+it shows exactly what the model started saying differently.
 
 ### Configuration (env vars)
 
@@ -72,6 +100,14 @@ GROQ_API_KEY=... python evals/run_evals.py # grounding guardrail metrics
 | `JWT_SECRET` | dev fallback | Signs auth tokens. Set a long random value in production. |
 | `GEMINI_API_KEY` | — | **Optional** RAG embeddings key. Unset = deterministic local TF-IDF embedder (no network — RAG fully works with no credential). Set to activate hosted Gemini `text-embedding-004` (1,500 req/day free). |
 | `GEMINI_EMBED_MODEL` | `text-embedding-004` | Gemini embeddings model used when `GEMINI_API_KEY` is set. |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | Preferred model. A retired or exhausted id falls through to the next live one; Groq meters tokens per model per day, so the fallback is a real mitigation, not a formality. |
+| `LLM_TIMEOUT_SECONDS` / `LLM_MAX_ATTEMPTS` | `45` / `3` | Per model call, and how many times a rate limit or server error is retried before moving on. |
+| `LLM_BREAKER_FAILURES` / `LLM_BREAKER_COOLDOWN` | `4` / `30` | Consecutive upstream failures before requests fail fast, and for how long. Rate limits never count: being told to slow down is not the upstream being broken. |
+| `ANALYSIS_CACHE_ENTRIES` / `ANALYSIS_CACHE_TTL_SECONDS` | `64` / `3600` | Repeat analyses served from memory. |
+| `ANALYZE_BUDGET_SECONDS` / `ANALYZE_BUDGET_TOKENS` | `75` / `24000` | Per request. On exhaustion the cover-letter check is skipped and the response says so; the bullet guardrail is never skipped. |
+| `LLM_PRICE_PER_MTOK_IN` / `_OUT` | — | Set both to show cost in the trace. Unset means cost is not shown, which beats showing a guessed number. |
+| `JAILBREAK_API_URL` | the deployed detector | Injection screening for the job description. Empty disables it; unreachable fails open and is reported as "unavailable". |
+| `PROMPT_TAILOR_VERSION` | `v1` | Which prompt file in `backend/prompts/tailor/` to use. |
 
 ### Keeping the free-tier DB awake
 
