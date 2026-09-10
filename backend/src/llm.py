@@ -40,7 +40,12 @@ class LLMError(Exception):
 # request time. A dead id would take every endpoint down at once, and it can
 # live in a deployed env var we can't edit from here, so try the configured
 # model first and then fall through this list.
-FALLBACK_MODELS = ["openai/gpt-oss-120b", "llama-3.1-8b-instant"]
+# Verified against the live API rather than guessed: llama-3.1-8b-instant is
+# 404 on this account, which would have made it a second dead entry in a chain
+# whose whole job is to not have dead entries. gpt-oss-20b answers, and it has
+# its OWN daily token budget — Groq meters per model per day (200k on the free
+# tier), so when the big model's day is spent the small one keeps the app up.
+FALLBACK_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
 
 # One model call, not one request: four of these run per analyze.
 TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "45"))

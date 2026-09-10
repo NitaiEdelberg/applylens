@@ -171,6 +171,7 @@ def estimate_tokens(*texts, expected_output=350):
 
 
 PACER = Pacer(int(os.getenv("BUILD_TPM_BUDGET", "3000")))
+GROQ_MODEL_HINT = os.getenv("GROQ_MODEL", "unknown")
 
 
 def log(message):
@@ -444,6 +445,11 @@ async def label_pairs(pairs, cvs, batch_size=8, pause=0.2):
                     verdict=entry.get("verdict"),
                     reason=(entry.get("reason") or "")[:300],
                     rule_says_covered=rule,
+                    # Which model annotated this row. Groq caps tokens per model
+                    # per day, so a long run can finish on a different (smaller)
+                    # model than it started on, and that is worth knowing when
+                    # the labels are the training signal.
+                    annotator=getattr(llm, "_working_model", None) or GROQ_MODEL_HINT,
                 ))
                 labelled += 1
             if labelled and labelled % 40 == 0:

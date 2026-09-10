@@ -108,7 +108,7 @@ def test_a_rate_limit_falls_through_to_another_model_after_the_bound(monkeypatch
         asyncio.run(llm.chat([{"role": "user", "content": "hi"}]))
     assert "429" in str(exc.value)
     assert tried == ["openai/gpt-oss-120b"] * llm.MAX_ATTEMPTS \
-        + ["llama-3.1-8b-instant"] * llm.MAX_ATTEMPTS
+        + ["openai/gpt-oss-20b"] * llm.MAX_ATTEMPTS
 
 
 def test_an_unsupported_schema_degrades_to_json_mode(monkeypatch):

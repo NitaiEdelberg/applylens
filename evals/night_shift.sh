@@ -13,6 +13,12 @@
 set -u
 cd "$(dirname "$0")/.."
 PY=backend/.venv/bin/python
+
+# Groq meters tokens PER MODEL PER DAY (200k on the free tier), and the big
+# model's day is already spent, so ask for the one that still has budget. The
+# client would fall through to it anyway; naming it saves three wasted attempts
+# on every call.
+export GROQ_MODEL="${GROQ_MODEL:-openai/gpt-oss-20b}"
 LOG=evals/corpus/night_shift.log
 
 say() { echo "$(date +%H:%M:%S) $*" | tee -a "$LOG"; }
