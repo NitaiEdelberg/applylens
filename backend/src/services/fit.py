@@ -8,6 +8,25 @@ SYSTEM = (
 )
 
 
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "overall_score": {"type": "integer"},
+        "matched": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"requirement": {"type": "string"}, "evidence": {"type": "string"}},
+            "required": ["requirement", "evidence"]}},
+        "partial": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"requirement": {"type": "string"}, "note": {"type": "string"}},
+            "required": ["requirement"]}},
+        "missing": {"type": "array", "items": {"type": "string"}},
+        "summary": {"type": "string"},
+    },
+    "required": ["overall_score", "summary"],
+}
+
+
 async def score_fit(jd_text: str, cv_text: str) -> dict:
     prompt = f"""Compare the CV against the job and return JSON with keys:
 - overall_score: integer 0-100 (honest overall match)
@@ -26,6 +45,7 @@ CV:
     data = await chat_json(
         [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
         temperature=0.1,
+        schema=SCHEMA,
     )
     return {
         "overall_score": int(data.get("overall_score", 0) or 0),

@@ -90,7 +90,7 @@ def _install_fake_llm(monkeypatch):
     the grounder verifies against that same expanded source of truth.
     """
 
-    async def fake(messages, temperature=0.2):
+    async def fake(messages, temperature=0.2, schema=None):
         system = messages[0]["content"]
         user = messages[1]["content"]
 

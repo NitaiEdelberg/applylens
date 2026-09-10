@@ -12,6 +12,7 @@ import {
 import GuardrailPanel from './components/GuardrailPanel.jsx'
 import FitGauge from './components/FitGauge.jsx'
 import SkillCoverage from './components/SkillCoverage.jsx'
+import RunTrace from './components/RunTrace.jsx'
 import Tracker from './components/Tracker.jsx'
 import TrustPanel, { TrustBadge } from './components/TrustPanel.jsx'
 import AuthPanel from './components/AuthPanel.jsx'
@@ -665,6 +666,7 @@ export default function App() {
                 <FitGauge fit={result.fit} />
                 <SkillCoverage skillMatch={result.skill_match} />
                 <JobCard job={result.job} />
+                <RunTrace trace={result.trace} />
                 <div className="card savebar">
                   <div className="field savebar__field">
                     <label className="field__label" htmlFor="company">Company (optional)</label>

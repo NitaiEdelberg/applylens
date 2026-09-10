@@ -105,6 +105,43 @@ class SkillMatch(BaseModel):
     method: str = "term coverage"
 
 
+# ---- per-request trace ----
+class LLMCall(BaseModel):
+    model: str
+    ms: int = 0
+    status: int = 200
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    retried: bool = False
+
+
+class TraceStage(BaseModel):
+    name: str
+    ms: int = 0
+    calls: List[LLMCall] = []
+    error: Optional[str] = None
+
+
+class TraceTotals(BaseModel):
+    llm_calls: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    # Only present when real per-token prices are configured; a guessed cost is
+    # worse than no cost.
+    cost_usd: Optional[float] = None
+    models: List[str] = []
+
+
+class RequestTrace(BaseModel):
+    request_id: str
+    name: str = ""
+    total_ms: int = 0
+    stages: List[TraceStage] = []
+    totals: TraceTotals = TraceTotals()
+    # True when the answer came from the in-process cache rather than the model.
+    cached: bool = False
+
+
 # ---- RAG over the optional career-history corpus (Circle 4) ----
 class RagInfo(BaseModel):
     used: bool = False
@@ -125,6 +162,9 @@ class AnalyzeResponse(BaseModel):
     # RAG retrieval over the optional career corpus. used=false when no
     # career_text was supplied (behavior identical to before).
     rag: RagInfo = RagInfo()
+    # What actually happened inside this request: stages, latency, tokens, and
+    # the model that answered. Empty on responses produced before tracing.
+    trace: Optional[RequestTrace] = None
 
 
 # ---- optional accounts (Circle 3) ----

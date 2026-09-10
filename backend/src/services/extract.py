@@ -3,6 +3,20 @@ from ..llm import chat_json
 
 SYSTEM = "You extract structured hiring requirements from a job description. Respond with JSON only."
 
+# The shape is enforced by the decoder where the model supports it, so a
+# malformed reply is not a failure mode we have to catch. See llm.chat.
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "seniority": {"type": "string"},
+        "must_haves": {"type": "array", "items": {"type": "string"}},
+        "nice_to_haves": {"type": "array", "items": {"type": "string"}},
+        "stack": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["title", "must_haves"],
+}
+
 
 async def extract_job(jd_text: str) -> dict:
     prompt = f"""Extract the job description below into JSON with exactly these keys:
@@ -19,6 +33,7 @@ JOB DESCRIPTION:
     data = await chat_json(
         [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
         temperature=0.1,
+        schema=SCHEMA,
     )
     # normalize
     return {

@@ -16,6 +16,23 @@ SYSTEM = (
 )
 
 
+CHECKS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "checks": {"type": "array", "items": {
+            "type": "object",
+            "properties": {
+                "statement": {"type": "string"},
+                "supported": {"type": "boolean"},
+                "evidence": {"type": ["string", "null"]},
+                "issue": {"type": ["string", "null"]},
+            },
+            "required": ["statement", "supported"]}},
+    },
+    "required": ["checks"],
+}
+
+
 async def check_grounding(cv_text: str, statements: list[str]) -> list[dict]:
     if not statements:
         return []
@@ -33,6 +50,7 @@ STATEMENTS:
     data = await chat_json(
         [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
         temperature=0.0,
+        schema=CHECKS_SCHEMA,
     )
     checks = data.get("checks", []) or []
     # be tolerant of a model that returns the wrong length

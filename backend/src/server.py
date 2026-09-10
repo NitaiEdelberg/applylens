@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
@@ -10,7 +11,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import or_, select, text as sql_text
 from sqlalchemy.orm import Session
 
+from .cache import ResultCache, fingerprint
 from .llm import LLMError
+from .resilience import CircuitOpen
+from .trace import log_event, start_trace, traced
 from .db_sql import TrackedApplication, User, get_session, init_db
 from .security import create_token, decode_token, hash_password, verify_password
 from .services.resume import ResumeParseError, extract_text
@@ -22,6 +26,7 @@ from .schemas import (
     TailorResult,
     AnalyzeResponse,
     RegenerateBulletRequest,
+    RequestTrace,
     RegenerateBulletResponse,
     AuthRequest,
     TokenResponse,
@@ -46,6 +51,13 @@ async def lifespan(_app: FastAPI):
     init_db()
     yield
 
+
+# Repeat analyses are served from here. Sized for one free instance: 64 entries
+# of a few KB each, an hour of life, gone when the instance sleeps.
+_analysis_cache = ResultCache(
+    max_entries=int(os.getenv("ANALYSIS_CACHE_ENTRIES", "64")),
+    ttl_seconds=float(os.getenv("ANALYSIS_CACHE_TTL_SECONDS", "3600")),
+)
 
 app = FastAPI(title="ApplyLens", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
@@ -143,6 +155,18 @@ async def api_analyze(req: AnalyzeRequest):
     _require(req.cv_text, "cv_text")
     career_text = (req.career_text or "").strip()
 
+    trace = start_trace("analyze")
+
+    # The same CV against the same job produces the same four model calls and
+    # the same answer, so serve the repeat from memory. The trace still comes
+    # back, marked cached, so the caller can see why it was instant.
+    key = fingerprint(req.jd_text, req.cv_text, career_text)
+    hit = _analysis_cache.get(key)
+    if hit is not None:
+        log_event("analyze.cache_hit", key=key)
+        cached = RequestTrace(**dict(trace.as_dict(), cached=True))
+        return hit.model_copy(update={"trace": cached})
+
     if career_text:
         rag_info, job, fit, tailored = await _safe(
             _analyze_with_rag, req.jd_text, req.cv_text, career_text
@@ -151,20 +175,24 @@ async def api_analyze(req: AnalyzeRequest):
         job, fit, tailored = await _safe(_gather_analyze, req.jd_text, req.cv_text)
         rag_info = {"used": False, "chunks": [], "source": default_source()}
 
-    # Deterministic, CPU-only second opinion: TF-IDF keyword coverage of the
-    # extracted requirements by the CV. No LLM call, so no extra latency.
+    # Deterministic, CPU-only second opinion: term coverage of the extracted
+    # requirements by the CV. No LLM call, so no extra latency.
     requirements = list(job.get("must_haves", [])) + list(job.get("nice_to_haves", []))
     match = skill_match(requirements, req.cv_text)
-    return AnalyzeResponse(
-        job=job, fit=fit, tailor=tailored, skill_match=match, rag=rag_info
+    response = AnalyzeResponse(
+        job=job, fit=fit, tailor=tailored, skill_match=match, rag=rag_info,
+        trace=trace.as_dict(),
     )
+    _analysis_cache.set(key, response)
+    log_event("analyze.done", **trace.as_dict()["totals"])
+    return response
 
 
 async def _gather_analyze(jd_text: str, cv_text: str):
     return await asyncio.gather(
-        extract_job(jd_text),
-        score_fit(jd_text, cv_text),
-        tailor(jd_text, cv_text),
+        traced("extract", extract_job, jd_text),
+        traced("fit", score_fit, jd_text, cv_text),
+        traced("tailor", tailor, jd_text, cv_text),
     )
 
 
@@ -177,7 +205,8 @@ async def _analyze_with_rag(jd_text: str, cv_text: str, career_text: str):
     is legitimately grounded; anything in neither is still flagged.
     """
     job, fit = await asyncio.gather(
-        extract_job(jd_text), score_fit(jd_text, cv_text)
+        traced("extract", extract_job, jd_text),
+        traced("fit", score_fit, jd_text, cv_text),
     )
     requirements = (
         list(job.get("must_haves", []))
@@ -188,14 +217,16 @@ async def _analyze_with_rag(jd_text: str, cv_text: str, career_text: str):
     # it off the event loop so it never stalls the async LLM routes. (Uses
     # run_in_executor rather than asyncio.to_thread for Python 3.8 support.)
     loop = asyncio.get_running_loop()
-    rag = await loop.run_in_executor(
-        None, retrieve_context, requirements or jd_text, career_text, 4
+    rag = await traced(
+        "retrieve",
+        loop.run_in_executor,
+        None, retrieve_context, requirements or jd_text, career_text, 4,
     )
     chunks = rag["chunks"]
     source_text = (
         cv_text if not chunks else cv_text + "\n\n" + "\n\n".join(chunks)
     )
-    tailored = await tailor(jd_text, source_text)
+    tailored = await traced("tailor", tailor, jd_text, source_text)
     rag_info = {"used": True, "chunks": chunks, "source": rag["source"]}
     return rag_info, job, fit, tailored
 
@@ -429,7 +460,17 @@ def _require(value: str, name: str):
 async def _safe(fn, *args):
     try:
         return await fn(*args)
+    except CircuitOpen as exc:
+        # The upstream is failing and we already know it, so say so quickly and
+        # tell the caller when to come back rather than timing out again.
+        log_event("request.short_circuited", reason=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail="The AI service is having a bad minute. Try again shortly.",
+            headers={"Retry-After": "30"},
+        )
     except LLMError as exc:
+        log_event("request.failed", error=str(exc)[:300])
         logging.warning("LLM error: %s", exc)
         raise HTTPException(status_code=502, detail=str(exc))
 

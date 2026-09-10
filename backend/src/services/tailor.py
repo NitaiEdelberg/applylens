@@ -13,6 +13,22 @@ SYSTEM = (
 )
 
 
+TAILOR_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "bullets": {"type": "array", "items": {"type": "string"}},
+        "cover_letter": {"type": "string"},
+    },
+    "required": ["bullets", "cover_letter"],
+}
+
+REGEN_SCHEMA = {
+    "type": "object",
+    "properties": {"bullet": {"type": "string"}},
+    "required": ["bullet"],
+}
+
+
 async def tailor(jd_text: str, cv_text: str) -> dict:
     prompt = f"""Write 4-6 tailored resume bullets and a short 3-paragraph cover letter for THIS job, drawing only on the candidate's CV.
 
@@ -37,6 +53,7 @@ Return JSON: {{"bullets": [str], "cover_letter": str}}"""
     data = await chat_json(
         [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
         temperature=0.4,
+        schema=TAILOR_SCHEMA,
     )
     bullets = data.get("bullets", []) or []
     cover_letter = data.get("cover_letter", "")
@@ -107,6 +124,7 @@ Return JSON: {{"bullet": str}}"""
             {"role": "user", "content": prompt},
         ],
         temperature=0.4,
+        schema=REGEN_SCHEMA,
     )
     return (data.get("bullet") or "").strip()
 
