@@ -23,7 +23,7 @@
   "tags_labelled": {
     "original": 20,
     "plain": 4,
-    "reframed": 2,
+    "reframed+reviewed": 2,
     "wrong_employer": 2,
     "wrong_role": 1,
     "inflated_role": 2,
@@ -32,7 +32,7 @@
     "inflated_tenure": 1,
     "from_the_jd": 3,
     "adjacent_tool": 2,
-    "category_from_tool": 2,
+    "category_from_tool+reviewed": 2,
     "unsupported_category": 1,
     "embellishment": 2,
     "education": 2,
