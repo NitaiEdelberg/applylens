@@ -27,6 +27,18 @@ jobs:
       - name: Coverage-signal eval (fails on a precision/recall regression)
         run: python evals/run_skillmatch_eval.py --verbose
 
+      - name: Retrieval eval (deterministic TF-IDF path, no key needed)
+        run: python evals/run_retrieval_eval.py --verbose
+
+      - name: Grounding evals, replayed from the recorded tape
+        run: |
+          if [ -f evals/cassettes/grounding.jsonl ]; then
+            python evals/run_evals.py --replay --verbose
+          else
+            echo "No tape recorded yet. Record one with:"
+            echo "  GROQ_API_KEY=... python evals/run_evals.py --record"
+          fi
+
   frontend:
     runs-on: ubuntu-latest
     steps:

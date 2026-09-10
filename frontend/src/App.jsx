@@ -696,7 +696,7 @@ export default function App() {
                 <FitGauge fit={result.fit} />
                 <SkillCoverage skillMatch={result.skill_match} />
                 <JobCard job={result.job} />
-                <RunTrace trace={result.trace} />
+                <RunTrace trace={result.trace} degraded={result.tailor && result.tailor.degraded} />
                 <div className="card savebar">
                   <div className="field savebar__field">
                     <label className="field__label" htmlFor="company">Company (optional)</label>

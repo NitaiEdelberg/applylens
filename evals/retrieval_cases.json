@@ -1,0 +1,158 @@
+[
+  {
+    "name": "llm-solutions-role",
+    "query": "LLM features, prompt engineering, evaluation, customer-facing delivery",
+    "relevant": [
+      0,
+      3
+    ],
+    "chunks": [
+      "At Jigso I built LLM-powered features for the product: prompt design, an evaluation harness for regressions, and the internal tooling the team used to inspect model output. I worked directly with enterprise customers to turn their questions into working answers.",
+      "I wrote heavy SQL against customer data warehouses, mostly Snowflake and BigQuery, joining event tables to billing data so account managers could answer revenue questions without waiting on an analyst.",
+      "I built a rehearsal management app for bands: Node.js and Express on the backend, React on the front, Socket.IO for the live session so the leader's song choice opens on every player's screen at the same moment, and PostgreSQL for accounts.",
+      "I built a prompt-injection detection API in FastAPI: a regex layer for known jailbreak phrasings plus a TF-IDF and logistic-regression classifier trained on labelled attacks, with per-scanner risk scores and measured precision and recall.",
+      "As a QA engineer at a logistics startup I wrote the regression suite, ran release testing, and reported defects with reproductions. This is where I learned to write a bug report somebody else can act on.",
+      "I built a Hebrew and English word game on FastText word embeddings: the computer finds the nearest neighbour to the semantic midpoint of two words, filtered by a morphology and part-of-speech layer so its Hebrew suggestions are real words.",
+      "For my degree I wrote an RFC-compliant TFTP server and client in Java, handling multiple concurrent clients with upload, download and broadcast notifications.",
+      "I maintain the deployment for several side projects: Render for the Python and Node services, Netlify for the static front ends, Supabase Postgres, and GitHub Actions cron jobs to keep free instances awake within an account-wide hour budget.",
+      "I built a movie watchlist app with React, Node and MongoDB, where the AI recommendation step is grounded against a real film database so it cannot invent titles.",
+      "I ran the data hygiene work for a CRM migration: deduplicating accounts, reconciling field mappings, and writing the validation queries that decided when the migration was safe to cut over."
+    ]
+  },
+  {
+    "name": "sql-warehouse-role",
+    "query": "SQL, Snowflake, BigQuery, data warehouse, analytics for business questions",
+    "relevant": [
+      1,
+      9
+    ],
+    "chunks": [
+      "At Jigso I built LLM-powered features for the product: prompt design, an evaluation harness for regressions, and the internal tooling the team used to inspect model output. I worked directly with enterprise customers to turn their questions into working answers.",
+      "I wrote heavy SQL against customer data warehouses, mostly Snowflake and BigQuery, joining event tables to billing data so account managers could answer revenue questions without waiting on an analyst.",
+      "I built a rehearsal management app for bands: Node.js and Express on the backend, React on the front, Socket.IO for the live session so the leader's song choice opens on every player's screen at the same moment, and PostgreSQL for accounts.",
+      "I built a prompt-injection detection API in FastAPI: a regex layer for known jailbreak phrasings plus a TF-IDF and logistic-regression classifier trained on labelled attacks, with per-scanner risk scores and measured precision and recall.",
+      "As a QA engineer at a logistics startup I wrote the regression suite, ran release testing, and reported defects with reproductions. This is where I learned to write a bug report somebody else can act on.",
+      "I built a Hebrew and English word game on FastText word embeddings: the computer finds the nearest neighbour to the semantic midpoint of two words, filtered by a morphology and part-of-speech layer so its Hebrew suggestions are real words.",
+      "For my degree I wrote an RFC-compliant TFTP server and client in Java, handling multiple concurrent clients with upload, download and broadcast notifications.",
+      "I maintain the deployment for several side projects: Render for the Python and Node services, Netlify for the static front ends, Supabase Postgres, and GitHub Actions cron jobs to keep free instances awake within an account-wide hour budget.",
+      "I built a movie watchlist app with React, Node and MongoDB, where the AI recommendation step is grounded against a real film database so it cannot invent titles.",
+      "I ran the data hygiene work for a CRM migration: deduplicating accounts, reconciling field mappings, and writing the validation queries that decided when the migration was safe to cut over."
+    ]
+  },
+  {
+    "name": "realtime-fullstack-role",
+    "query": "React, Node.js, WebSockets, real-time collaboration, PostgreSQL",
+    "relevant": [
+      2,
+      8
+    ],
+    "chunks": [
+      "At Jigso I built LLM-powered features for the product: prompt design, an evaluation harness for regressions, and the internal tooling the team used to inspect model output. I worked directly with enterprise customers to turn their questions into working answers.",
+      "I wrote heavy SQL against customer data warehouses, mostly Snowflake and BigQuery, joining event tables to billing data so account managers could answer revenue questions without waiting on an analyst.",
+      "I built a rehearsal management app for bands: Node.js and Express on the backend, React on the front, Socket.IO for the live session so the leader's song choice opens on every player's screen at the same moment, and PostgreSQL for accounts.",
+      "I built a prompt-injection detection API in FastAPI: a regex layer for known jailbreak phrasings plus a TF-IDF and logistic-regression classifier trained on labelled attacks, with per-scanner risk scores and measured precision and recall.",
+      "As a QA engineer at a logistics startup I wrote the regression suite, ran release testing, and reported defects with reproductions. This is where I learned to write a bug report somebody else can act on.",
+      "I built a Hebrew and English word game on FastText word embeddings: the computer finds the nearest neighbour to the semantic midpoint of two words, filtered by a morphology and part-of-speech layer so its Hebrew suggestions are real words.",
+      "For my degree I wrote an RFC-compliant TFTP server and client in Java, handling multiple concurrent clients with upload, download and broadcast notifications.",
+      "I maintain the deployment for several side projects: Render for the Python and Node services, Netlify for the static front ends, Supabase Postgres, and GitHub Actions cron jobs to keep free instances awake within an account-wide hour budget.",
+      "I built a movie watchlist app with React, Node and MongoDB, where the AI recommendation step is grounded against a real film database so it cannot invent titles.",
+      "I ran the data hygiene work for a CRM migration: deduplicating accounts, reconciling field mappings, and writing the validation queries that decided when the migration was safe to cut over."
+    ]
+  },
+  {
+    "name": "ml-security-role",
+    "query": "machine learning classifier, scikit-learn, security, prompt injection detection",
+    "relevant": [
+      3
+    ],
+    "chunks": [
+      "At Jigso I built LLM-powered features for the product: prompt design, an evaluation harness for regressions, and the internal tooling the team used to inspect model output. I worked directly with enterprise customers to turn their questions into working answers.",
+      "I wrote heavy SQL against customer data warehouses, mostly Snowflake and BigQuery, joining event tables to billing data so account managers could answer revenue questions without waiting on an analyst.",
+      "I built a rehearsal management app for bands: Node.js and Express on the backend, React on the front, Socket.IO for the live session so the leader's song choice opens on every player's screen at the same moment, and PostgreSQL for accounts.",
+      "I built a prompt-injection detection API in FastAPI: a regex layer for known jailbreak phrasings plus a TF-IDF and logistic-regression classifier trained on labelled attacks, with per-scanner risk scores and measured precision and recall.",
+      "As a QA engineer at a logistics startup I wrote the regression suite, ran release testing, and reported defects with reproductions. This is where I learned to write a bug report somebody else can act on.",
+      "I built a Hebrew and English word game on FastText word embeddings: the computer finds the nearest neighbour to the semantic midpoint of two words, filtered by a morphology and part-of-speech layer so its Hebrew suggestions are real words.",
+      "For my degree I wrote an RFC-compliant TFTP server and client in Java, handling multiple concurrent clients with upload, download and broadcast notifications.",
+      "I maintain the deployment for several side projects: Render for the Python and Node services, Netlify for the static front ends, Supabase Postgres, and GitHub Actions cron jobs to keep free instances awake within an account-wide hour budget.",
+      "I built a movie watchlist app with React, Node and MongoDB, where the AI recommendation step is grounded against a real film database so it cannot invent titles.",
+      "I ran the data hygiene work for a CRM migration: deduplicating accounts, reconciling field mappings, and writing the validation queries that decided when the migration was safe to cut over."
+    ]
+  },
+  {
+    "name": "nlp-embeddings-role",
+    "query": "NLP, word embeddings, semantic similarity, nearest neighbour search",
+    "relevant": [
+      5,
+      3
+    ],
+    "chunks": [
+      "At Jigso I built LLM-powered features for the product: prompt design, an evaluation harness for regressions, and the internal tooling the team used to inspect model output. I worked directly with enterprise customers to turn their questions into working answers.",
+      "I wrote heavy SQL against customer data warehouses, mostly Snowflake and BigQuery, joining event tables to billing data so account managers could answer revenue questions without waiting on an analyst.",
+      "I built a rehearsal management app for bands: Node.js and Express on the backend, React on the front, Socket.IO for the live session so the leader's song choice opens on every player's screen at the same moment, and PostgreSQL for accounts.",
+      "I built a prompt-injection detection API in FastAPI: a regex layer for known jailbreak phrasings plus a TF-IDF and logistic-regression classifier trained on labelled attacks, with per-scanner risk scores and measured precision and recall.",
+      "As a QA engineer at a logistics startup I wrote the regression suite, ran release testing, and reported defects with reproductions. This is where I learned to write a bug report somebody else can act on.",
+      "I built a Hebrew and English word game on FastText word embeddings: the computer finds the nearest neighbour to the semantic midpoint of two words, filtered by a morphology and part-of-speech layer so its Hebrew suggestions are real words.",
+      "For my degree I wrote an RFC-compliant TFTP server and client in Java, handling multiple concurrent clients with upload, download and broadcast notifications.",
+      "I maintain the deployment for several side projects: Render for the Python and Node services, Netlify for the static front ends, Supabase Postgres, and GitHub Actions cron jobs to keep free instances awake within an account-wide hour budget.",
+      "I built a movie watchlist app with React, Node and MongoDB, where the AI recommendation step is grounded against a real film database so it cannot invent titles.",
+      "I ran the data hygiene work for a CRM migration: deduplicating accounts, reconciling field mappings, and writing the validation queries that decided when the migration was safe to cut over."
+    ]
+  },
+  {
+    "name": "qa-role",
+    "query": "QA engineering, regression testing, release testing, defect reporting",
+    "relevant": [
+      4
+    ],
+    "chunks": [
+      "At Jigso I built LLM-powered features for the product: prompt design, an evaluation harness for regressions, and the internal tooling the team used to inspect model output. I worked directly with enterprise customers to turn their questions into working answers.",
+      "I wrote heavy SQL against customer data warehouses, mostly Snowflake and BigQuery, joining event tables to billing data so account managers could answer revenue questions without waiting on an analyst.",
+      "I built a rehearsal management app for bands: Node.js and Express on the backend, React on the front, Socket.IO for the live session so the leader's song choice opens on every player's screen at the same moment, and PostgreSQL for accounts.",
+      "I built a prompt-injection detection API in FastAPI: a regex layer for known jailbreak phrasings plus a TF-IDF and logistic-regression classifier trained on labelled attacks, with per-scanner risk scores and measured precision and recall.",
+      "As a QA engineer at a logistics startup I wrote the regression suite, ran release testing, and reported defects with reproductions. This is where I learned to write a bug report somebody else can act on.",
+      "I built a Hebrew and English word game on FastText word embeddings: the computer finds the nearest neighbour to the semantic midpoint of two words, filtered by a morphology and part-of-speech layer so its Hebrew suggestions are real words.",
+      "For my degree I wrote an RFC-compliant TFTP server and client in Java, handling multiple concurrent clients with upload, download and broadcast notifications.",
+      "I maintain the deployment for several side projects: Render for the Python and Node services, Netlify for the static front ends, Supabase Postgres, and GitHub Actions cron jobs to keep free instances awake within an account-wide hour budget.",
+      "I built a movie watchlist app with React, Node and MongoDB, where the AI recommendation step is grounded against a real film database so it cannot invent titles.",
+      "I ran the data hygiene work for a CRM migration: deduplicating accounts, reconciling field mappings, and writing the validation queries that decided when the migration was safe to cut over."
+    ]
+  },
+  {
+    "name": "devops-lite-role",
+    "query": "deployment, CI/CD, GitHub Actions, cloud hosting, keeping services running",
+    "relevant": [
+      7
+    ],
+    "chunks": [
+      "At Jigso I built LLM-powered features for the product: prompt design, an evaluation harness for regressions, and the internal tooling the team used to inspect model output. I worked directly with enterprise customers to turn their questions into working answers.",
+      "I wrote heavy SQL against customer data warehouses, mostly Snowflake and BigQuery, joining event tables to billing data so account managers could answer revenue questions without waiting on an analyst.",
+      "I built a rehearsal management app for bands: Node.js and Express on the backend, React on the front, Socket.IO for the live session so the leader's song choice opens on every player's screen at the same moment, and PostgreSQL for accounts.",
+      "I built a prompt-injection detection API in FastAPI: a regex layer for known jailbreak phrasings plus a TF-IDF and logistic-regression classifier trained on labelled attacks, with per-scanner risk scores and measured precision and recall.",
+      "As a QA engineer at a logistics startup I wrote the regression suite, ran release testing, and reported defects with reproductions. This is where I learned to write a bug report somebody else can act on.",
+      "I built a Hebrew and English word game on FastText word embeddings: the computer finds the nearest neighbour to the semantic midpoint of two words, filtered by a morphology and part-of-speech layer so its Hebrew suggestions are real words.",
+      "For my degree I wrote an RFC-compliant TFTP server and client in Java, handling multiple concurrent clients with upload, download and broadcast notifications.",
+      "I maintain the deployment for several side projects: Render for the Python and Node services, Netlify for the static front ends, Supabase Postgres, and GitHub Actions cron jobs to keep free instances awake within an account-wide hour budget.",
+      "I built a movie watchlist app with React, Node and MongoDB, where the AI recommendation step is grounded against a real film database so it cannot invent titles.",
+      "I ran the data hygiene work for a CRM migration: deduplicating accounts, reconciling field mappings, and writing the validation queries that decided when the migration was safe to cut over."
+    ]
+  },
+  {
+    "name": "java-systems-role",
+    "query": "Java, network protocols, concurrent servers, sockets",
+    "relevant": [
+      6
+    ],
+    "chunks": [
+      "At Jigso I built LLM-powered features for the product: prompt design, an evaluation harness for regressions, and the internal tooling the team used to inspect model output. I worked directly with enterprise customers to turn their questions into working answers.",
+      "I wrote heavy SQL against customer data warehouses, mostly Snowflake and BigQuery, joining event tables to billing data so account managers could answer revenue questions without waiting on an analyst.",
+      "I built a rehearsal management app for bands: Node.js and Express on the backend, React on the front, Socket.IO for the live session so the leader's song choice opens on every player's screen at the same moment, and PostgreSQL for accounts.",
+      "I built a prompt-injection detection API in FastAPI: a regex layer for known jailbreak phrasings plus a TF-IDF and logistic-regression classifier trained on labelled attacks, with per-scanner risk scores and measured precision and recall.",
+      "As a QA engineer at a logistics startup I wrote the regression suite, ran release testing, and reported defects with reproductions. This is where I learned to write a bug report somebody else can act on.",
+      "I built a Hebrew and English word game on FastText word embeddings: the computer finds the nearest neighbour to the semantic midpoint of two words, filtered by a morphology and part-of-speech layer so its Hebrew suggestions are real words.",
+      "For my degree I wrote an RFC-compliant TFTP server and client in Java, handling multiple concurrent clients with upload, download and broadcast notifications.",
+      "I maintain the deployment for several side projects: Render for the Python and Node services, Netlify for the static front ends, Supabase Postgres, and GitHub Actions cron jobs to keep free instances awake within an account-wide hour budget.",
+      "I built a movie watchlist app with React, Node and MongoDB, where the AI recommendation step is grounded against a real film database so it cannot invent titles.",
+      "I ran the data hygiene work for a CRM migration: deduplicating accounts, reconciling field mappings, and writing the validation queries that decided when the migration was safe to cut over."
+    ]
+  }
+]

@@ -1,19 +1,16 @@
 """Generate CV-grounded resume bullets + a cover letter, then verify grounding."""
 import asyncio
 
+from ..budget import over_budget
 from ..llm import chat_json
+from ..trace import log_event
+from ..prompts import render
 from .untrusted import GUARD, as_data
 from .grounding import check_grounding, check_cover_letter
 
-SYSTEM = (
-    "You are an expert resume writer. You TAILOR a candidate's real experience to a "
-    "specific target job: you reframe, rephrase, reorder, and emphasize their CV so "
-    "it speaks directly to what THIS job asks for. You must stay truthful — every "
-    "claim must be grounded in the CV — but you must NOT simply copy CV sentences: "
-    "adapt them to the job. Respond with JSON only. " + GUARD
-)
-
-
+# The tailoring prompt lives in backend/prompts/tailor/*.txt so a change to it
+# is a diff and an A/B run, not an untracked edit. Set PROMPT_TAILOR_VERSION to
+# pick one; evals/run_prompt_ab.py scores them against each other.
 TAILOR_SCHEMA = {
     "type": "object",
     "properties": {
@@ -30,29 +27,15 @@ REGEN_SCHEMA = {
 }
 
 
-async def tailor(jd_text: str, cv_text: str) -> dict:
-    prompt = f"""Write 4-6 tailored resume bullets and a short 3-paragraph cover letter for THIS job, drawing only on the candidate's CV.
-
-TAILORING (target the job, but only by re-expressing what the CV already says):
-- REFRAME, don't copy: reword the candidate's real experience with stronger verbs, tighter phrasing, and emphasis aimed at this job. Do NOT repeat CV sentences verbatim.
-- Prioritize & reorder: lead with the CV experience this job cares about most; put the most job-relevant bullets first.
-- Use the job's terminology ONLY where the CV genuinely describes that same skill/experience.
-
-STAY VERIFIABLE (non-negotiable — every bullet is fact-checked against the CV):
-- Same facts as the CV, re-expressed — NOT new claims. Each phrase must be verifiable against the CV.
-- Do NOT add skills, tools, or technologies the job wants but the CV lacks (e.g. don't claim "REST APIs" if the CV never mentions them).
-- Do NOT add embellishments, outcomes, or adjectives the CV doesn't state (no "scalable", "seamless", "engaging", "drove business value", invented metrics, etc.).
-- If in doubt, prefer a faithful rewording over an impressive-sounding claim.
-
-JOB:
-{as_data("JOB", jd_text)}
-
-CV:
-{as_data("CV", cv_text)}
-
-Return JSON: {{"bullets": [str], "cover_letter": str}}"""
+async def tailor(jd_text: str, cv_text: str, version: str = None) -> dict:
+    system, prompt = render(
+        "tailor", version,
+        guard=GUARD,
+        job=as_data("JOB", jd_text),
+        cv=as_data("CV", cv_text),
+    )
     data = await chat_json(
-        [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
+        [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
         temperature=0.4,
         schema=TAILOR_SCHEMA,
     )
@@ -61,10 +44,21 @@ Return JSON: {{"bullets": [str], "cover_letter": str}}"""
 
     # Guardrail: fact-check every generated bullet AND the cover letter's
     # factual self-claims against the CV — concurrently.
-    grounding, cover = await asyncio.gather(
-        check_grounding(cv_text, bullets),
-        check_cover_letter(cv_text, cover_letter),
-    )
+    #
+    # Unless the request has run out of budget, in which case the bullets are
+    # still checked (that is the guardrail) and the cover letter's claims are
+    # not (it is a draft to edit). The result says so instead of quietly
+    # returning an unchecked letter.
+    exhausted = over_budget()
+    if exhausted:
+        log_event("budget.degraded", step="cover_letter_grounding", reason=exhausted)
+        grounding = await check_grounding(cv_text, bullets)
+        cover = {"claims": [], "flagged_count": 0}
+    else:
+        grounding, cover = await asyncio.gather(
+            check_grounding(cv_text, bullets),
+            check_cover_letter(cv_text, cover_letter),
+        )
     flagged = [g for g in grounding if not g["supported"]]
 
     return {
@@ -74,6 +68,8 @@ Return JSON: {{"bullets": [str], "cover_letter": str}}"""
         "flagged_count": len(flagged),
         "cover_grounding": cover["claims"],
         "cover_flagged_count": cover["flagged_count"],
+        "degraded": ([{"step": "cover_letter_grounding", "reason": exhausted}]
+                     if exhausted else []),
     }
 
 

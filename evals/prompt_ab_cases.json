@@ -1,0 +1,62 @@
+[
+  {
+    "name": "solutions-engineer",
+    "cv": "Nitai Edelberg. B.Sc. Computer Science, Ben-Gurion University. AI Solutions Engineer at Jigso: built LLM-powered features and the tooling around them, wrote SQL against Snowflake and BigQuery, worked directly with customers to turn their problems into working solutions. Python, FastAPI, React, Node.js, MongoDB, PostgreSQL. Side projects: a prompt-injection detection API using scikit-learn, a real-time rehearsal app with Socket.IO, a word game built on FastText embeddings.",
+    "jd": "Solutions Engineer, AI. You will work with enterprise customers to deploy LLM features, write SQL against their cloud warehouse, and build internal tooling. Requirements: strong Python, SQL, customer-facing experience, 2+ years with LLMs. Nice to have: Kubernetes, Terraform, React."
+  },
+  {
+    "name": "backend-python",
+    "cv": "Nitai Edelberg. B.Sc. Computer Science, Ben-Gurion University. AI Solutions Engineer at Jigso: built LLM-powered features and the tooling around them, wrote SQL against Snowflake and BigQuery, worked directly with customers to turn their problems into working solutions. Python, FastAPI, React, Node.js, MongoDB, PostgreSQL. Side projects: a prompt-injection detection API using scikit-learn, a real-time rehearsal app with Socket.IO, a word game built on FastText embeddings.",
+    "jd": "Backend Engineer. Build and operate Python services behind REST APIs. Requirements: Python, FastAPI or Django, PostgreSQL, testing discipline. Nice to have: Kafka, gRPC."
+  },
+  {
+    "name": "mismatched-devops",
+    "cv": "Nitai Edelberg. B.Sc. Computer Science, Ben-Gurion University. AI Solutions Engineer at Jigso: built LLM-powered features and the tooling around them, wrote SQL against Snowflake and BigQuery, worked directly with customers to turn their problems into working solutions. Python, FastAPI, React, Node.js, MongoDB, PostgreSQL. Side projects: a prompt-injection detection API using scikit-learn, a real-time rehearsal app with Socket.IO, a word game built on FastText embeddings.",
+    "jd": "Site Reliability Engineer. Requirements: Kubernetes, Terraform, AWS, Go, incident response, 5+ years operating production infrastructure."
+  },
+  {
+    "name": "analytics-engineer",
+    "cv": "Data analyst, 3 years. Daily SQL on Redshift, dashboards in Looker, Python with pandas for ad-hoc analysis. Presented findings to marketing stakeholders every week. Some dbt modelling.",
+    "jd": "Analytics Engineer. Model data with dbt, build dashboards, partner with marketing and finance. Requirements: SQL, dbt, a cloud warehouse, stakeholder communication."
+  },
+  {
+    "name": "data-to-ml",
+    "cv": "Data analyst, 3 years. Daily SQL on Redshift, dashboards in Looker, Python with pandas for ad-hoc analysis. Presented findings to marketing stakeholders every week. Some dbt modelling.",
+    "jd": "Machine Learning Engineer. Requirements: Python, PyTorch, model deployment, feature engineering, experiment tracking."
+  },
+  {
+    "name": "platform-engineer",
+    "cv": "Platform engineer. Terraform across AWS accounts, Kubernetes clusters on EKS, Docker images, CI pipelines in GitHub Actions. Go and Bash. On-call rotation.",
+    "jd": "Platform Engineer. Own the Kubernetes platform and its Terraform modules, run CI, improve developer experience. Requirements: Kubernetes, Terraform, AWS, Go or Python."
+  },
+  {
+    "name": "devops-to-frontend",
+    "cv": "Platform engineer. Terraform across AWS accounts, Kubernetes clusters on EKS, Docker images, CI pipelines in GitHub Actions. Go and Bash. On-call rotation.",
+    "jd": "Frontend Engineer. Requirements: React, TypeScript, CSS architecture, accessibility, design-system work."
+  },
+  {
+    "name": "junior-fullstack",
+    "cv": "Junior developer. Built a personal website with React and a small Express API. Studied C++ and Java at university. Comfortable with Git.",
+    "jd": "Junior Full-Stack Developer. Requirements: JavaScript, React, some backend exposure, Git, willingness to learn. Nice to have: SQL."
+  },
+  {
+    "name": "junior-overreach",
+    "cv": "Junior developer. Built a personal website with React and a small Express API. Studied C++ and Java at university. Comfortable with Git.",
+    "jd": "Senior Software Engineer. Requirements: 5+ years, distributed systems, microservices at scale, mentoring, on-call ownership."
+  },
+  {
+    "name": "ml-engineer",
+    "cv": "Machine learning engineer. Trained classifiers with PyTorch, fine-tuned transformers on domain text, deployed models behind Flask APIs. Experiment tracking in Weights and Biases. Strong Python.",
+    "jd": "ML Engineer. Requirements: Python, PyTorch, transformers, deploying models to production, experiment tracking. Nice to have: Kubernetes, cloud warehouses."
+  },
+  {
+    "name": "ml-to-solutions",
+    "cv": "Machine learning engineer. Trained classifiers with PyTorch, fine-tuned transformers on domain text, deployed models behind Flask APIs. Experiment tracking in Weights and Biases. Strong Python.",
+    "jd": "AI Solutions Engineer. Requirements: Python, LLMs, customer-facing delivery, SQL, translating business problems into working prototypes."
+  },
+  {
+    "name": "thin-cv-rich-jd",
+    "cv": "Junior developer. Built a personal website with React and a small Express API. Studied C++ and Java at university. Comfortable with Git.",
+    "jd": "AI Engineer. Requirements: LLMs, RAG, vector databases, Python, evaluation frameworks, prompt engineering, cloud deployment."
+  }
+]

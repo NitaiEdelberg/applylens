@@ -53,6 +53,11 @@ class GroundingCheck(BaseModel):
     issue: Optional[str] = None
 
 
+class Degradation(BaseModel):
+    step: str
+    reason: str = ""
+
+
 class TailorResult(BaseModel):
     bullets: List[str] = []
     cover_letter: str = ""
@@ -62,6 +67,9 @@ class TailorResult(BaseModel):
     # factual self-claims (GroundingCheck.statement holds the claim text).
     cover_grounding: List[GroundingCheck] = []
     cover_flagged_count: int = 0
+    # Steps skipped because the request ran out of its time/token budget. The
+    # bullet guardrail is never in here: it is the point of the product.
+    degraded: List[Degradation] = []
 
 
 # ---- self-correcting "Fix this bullet" loop ----

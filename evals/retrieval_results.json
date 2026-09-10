@@ -1,0 +1,75 @@
+{
+  "k": 4,
+  "embedder": "tfidf",
+  "recall": 0.9375,
+  "precision": 0.34375,
+  "mrr": 1.0,
+  "cases": [
+    {
+      "name": "llm-solutions-role",
+      "recall": 1.0,
+      "precision": 0.5,
+      "reciprocal_rank": 1.0,
+      "missed": [],
+      "source": "tfidf"
+    },
+    {
+      "name": "sql-warehouse-role",
+      "recall": 1.0,
+      "precision": 0.5,
+      "reciprocal_rank": 1.0,
+      "missed": [],
+      "source": "tfidf"
+    },
+    {
+      "name": "realtime-fullstack-role",
+      "recall": 1.0,
+      "precision": 0.5,
+      "reciprocal_rank": 1.0,
+      "missed": [],
+      "source": "tfidf"
+    },
+    {
+      "name": "ml-security-role",
+      "recall": 1.0,
+      "precision": 0.25,
+      "reciprocal_rank": 1.0,
+      "missed": [],
+      "source": "tfidf"
+    },
+    {
+      "name": "nlp-embeddings-role",
+      "recall": 0.5,
+      "precision": 0.25,
+      "reciprocal_rank": 1.0,
+      "missed": [
+        "I built a prompt-injection detection API in FastAPI: a regex"
+      ],
+      "source": "tfidf"
+    },
+    {
+      "name": "qa-role",
+      "recall": 1.0,
+      "precision": 0.25,
+      "reciprocal_rank": 1.0,
+      "missed": [],
+      "source": "tfidf"
+    },
+    {
+      "name": "devops-lite-role",
+      "recall": 1.0,
+      "precision": 0.25,
+      "reciprocal_rank": 1.0,
+      "missed": [],
+      "source": "tfidf"
+    },
+    {
+      "name": "java-systems-role",
+      "recall": 1.0,
+      "precision": 0.25,
+      "reciprocal_rank": 1.0,
+      "missed": [],
+      "source": "tfidf"
+    }
+  ]
+}

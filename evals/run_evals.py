@@ -1,78 +1,154 @@
-"""Evaluate the grounding guardrail against a labeled dataset.
+"""Evaluate the grounding guardrail against a labelled dataset.
 
-Measures whether check_grounding correctly labels statements as supported vs.
-fabricated. Reports accuracy + precision/recall for catching fabrications.
+The guardrail is what makes this product safe to use: it decides whether a
+generated bullet is backed by the CV. This measures how often it is right, in
+both directions, because the two errors cost different things. Missing a
+fabrication puts an invented claim on someone's resume. Flagging a true
+statement nags them about a real achievement.
 
-Usage:  GROQ_API_KEY=... python evals/run_evals.py
+    python evals/run_evals.py --record    # once, with a real key: writes the tape
+    python evals/run_evals.py --replay    # any time, no key, no bill: reads it
+    python evals/run_evals.py             # live, against the real API
+
+Replay is what runs in CI. It is not a substitute for re-recording: when a
+prompt changes, the tape has to be re-cut, and the diff shows exactly what the
+model started saying differently.
 """
+import argparse
 import asyncio
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from collections import defaultdict
 from pathlib import Path
 
-# make backend importable
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+HERE = Path(__file__).resolve().parent
+TAPE = HERE / "cassettes" / "grounding.jsonl"
+
+# Parsed before importing the client, which reads its config at import time.
+_args = argparse.ArgumentParser(add_help=False)
+_args.add_argument("--record", action="store_true")
+_args.add_argument("--replay", action="store_true")
+_known, _ = _args.parse_known_args()
+if _known.record or _known.replay:
+    os.environ["LLM_CASSETTE"] = str(TAPE)
+    os.environ["LLM_CASSETTE_MODE"] = "record" if _known.record else "replay"
+if _known.record:
+    # Recording is a batch job on a free tier: wait rather than fail.
+    os.environ.setdefault("LLM_MAX_ATTEMPTS", "6")
+    os.environ.setdefault("LLM_BACKOFF_SECONDS", "4")
+
+sys.path.insert(0, str(HERE.parent / "backend"))
 from src.services.grounding import check_grounding  # noqa: E402
 
-DATA = Path(__file__).with_name("dataset.jsonl")
+DATA = HERE / "dataset.jsonl"
+RESULTS = HERE / "results.json"
+
+# Floors, not targets. Catching fabrications is the job, so recall is held
+# higher than precision: a false flag is a nag, a missed fabrication is a lie
+# on someone's resume.
+MIN_RECALL = 0.85
+MIN_PRECISION = 0.75
+
+
+def score(rows):
+    """Metrics for the positive class 'caught a fabrication'."""
+    tp = sum(1 for r in rows if not r["expected"] and not r["predicted"])
+    fp = sum(1 for r in rows if r["expected"] and not r["predicted"])
+    fn = sum(1 for r in rows if not r["expected"] and r["predicted"])
+    tn = sum(1 for r in rows if r["expected"] and r["predicted"])
+    precision = tp / (tp + fp) if tp + fp else 0.0
+    recall = tp / (tp + fn) if tp + fn else 0.0
+    return {
+        "n": len(rows),
+        "accuracy": (tp + tn) / len(rows) if rows else 0.0,
+        "precision": precision,
+        "recall": recall,
+        "f1": (2 * precision * recall / (precision + recall)) if precision + recall else 0.0,
+        "missed_fabrications": fn,
+        "false_flags": fp,
+    }
 
 
 async def main():
-    if not os.getenv("GROQ_API_KEY"):
-        print("Set GROQ_API_KEY to run the evals.")
-        return
+    parser = argparse.ArgumentParser(parents=[_args])
+    parser.add_argument("--verbose", action="store_true", help="list every wrong row")
+    parser.add_argument("--pause", type=float, default=None,
+                        help="seconds between live calls (default: 2.2 live, 0 on tape)")
+    args = parser.parse_args()
 
-    rows = [json.loads(line) for line in DATA.read_text().splitlines() if line.strip()]
-    # tp/fp/fn are for the "fabrication caught" positive class (supported == False)
-    tp = fp = fn = correct = 0
+    on_tape = args.replay
+    if not on_tape and not os.getenv("GROQ_API_KEY"):
+        print("Set GROQ_API_KEY, or run with --replay to use the recorded tape.")
+        return 1
 
-    for idx, row in enumerate(rows):
-        if idx:
-            await asyncio.sleep(2.2)  # stay under Groq's 30 req/min free-tier limit
+    pause = args.pause if args.pause is not None else (0.0 if on_tape else 2.2)
+    rows = [json.loads(line) for line in DATA.read_text(encoding="utf-8").splitlines()
+            if line.strip()]
+    print("{} rows ({} supported / {} fabricated) — {}".format(
+        len(rows), sum(1 for r in rows if r["expected_supported"]),
+        sum(1 for r in rows if not r["expected_supported"]),
+        "replaying the tape" if on_tape else
+        ("recording a new tape" if args.record else "calling the live API")))
+
+    scored = []
+    for index, row in enumerate(rows):
+        if index and pause:
+            await asyncio.sleep(pause)
         [check] = await check_grounding(row["cv"], [row["statement"]])
-        predicted_supported = check["supported"]
-        expected_supported = row["expected_supported"]
-        if predicted_supported == expected_supported:
-            correct += 1
-        # fabrication = not supported
-        if not expected_supported and not predicted_supported:
-            tp += 1
-        elif not predicted_supported and expected_supported:
-            fp += 1
-        elif predicted_supported and not expected_supported:
-            fn += 1
-        mark = "ok " if predicted_supported == expected_supported else "MISS"
-        print(f"[{mark}] supported={predicted_supported} (expected {expected_supported}): {row['statement'][:60]}")
+        scored.append({
+            "statement": row["statement"],
+            "tag": row.get("tag", "original"),
+            "expected": row["expected_supported"],
+            "predicted": check["supported"],
+            "issue": check.get("issue"),
+        })
+        if not on_tape and (index + 1) % 10 == 0:
+            print("  {}/{}".format(index + 1, len(rows)), flush=True)
 
-    n = len(rows)
-    precision = tp / (tp + fp) if (tp + fp) else 0.0
-    recall = tp / (tp + fn) if (tp + fn) else 0.0
-    accuracy = correct / n if n else 0.0
-    print("\n--- grounding guardrail ---")
-    print(f"accuracy:  {correct}/{n} = {accuracy:.0%}")
-    print(f"fabrication precision: {precision:.0%}  recall: {recall:.0%}")
+    overall = score(scored)
+    by_tag = {}
+    grouped = defaultdict(list)
+    for row in scored:
+        grouped[row["tag"]].append(row)
+    for tag, group in sorted(grouped.items()):
+        by_tag[tag] = score(group)
 
-    # Emit a machine-readable summary the frontend can import (T7 trust panel).
-    results = {
-        "accuracy": round(accuracy, 4),
-        "precision": round(precision, 4),
-        "recall": round(recall, 4),
-        "n": n,
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-    }
-    payload = json.dumps(results, indent=2) + "\n"
-    out = Path(__file__).with_name("results.json")
-    out.write_text(payload)
-    print(f"wrote {out}")
+    print("\noverall   accuracy {accuracy:.2f} | precision {precision:.2f} | "
+          "recall {recall:.2f} | f1 {f1:.2f}".format(**overall))
+    print("          {} fabrications missed, {} true statements wrongly flagged".format(
+        overall["missed_fabrications"], overall["false_flags"]))
 
-    # Also bundle a copy the frontend imports at build time (T7 trust panel).
-    fe = Path(__file__).resolve().parents[1] / "frontend" / "src" / "eval-results.json"
-    if fe.parent.exists():
-        fe.write_text(payload)
-        print(f"wrote {fe}")
+    print("\n{:24} {:>4} {:>6} {:>7} {:>7}".format("by kind", "n", "acc", "missed", "flagged"))
+    for tag, stats in sorted(by_tag.items(), key=lambda kv: kv[1]["accuracy"]):
+        print("{:24} {n:>4} {accuracy:>6.2f} {missed_fabrications:>7} {false_flags:>7}".format(
+            tag, **stats))
+
+    if args.verbose:
+        print("\nrows the guardrail got wrong:")
+        for row in scored:
+            if row["expected"] != row["predicted"]:
+                kind = "MISSED a fabrication" if not row["expected"] else "wrongly flagged"
+                print("  [{}] ({}) {}".format(kind, row["tag"], row["statement"][:100]))
+
+    RESULTS.write_text(json.dumps({
+        "overall": overall, "by_tag": by_tag,
+        "source": "tape" if on_tape else "live",
+        "rows": scored,
+    }, indent=2, ensure_ascii=False), encoding="utf-8")
+    print("\nwrote {}".format(RESULTS.name))
+
+    failed = []
+    if overall["recall"] < MIN_RECALL:
+        failed.append("recall {:.2f} < {}".format(overall["recall"], MIN_RECALL))
+    if overall["precision"] < MIN_PRECISION:
+        failed.append("precision {:.2f} < {}".format(overall["precision"], MIN_PRECISION))
+    if failed:
+        print("FAIL: " + "; ".join(failed))
+        return 1
+    print("PASS")
+    return 0
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))

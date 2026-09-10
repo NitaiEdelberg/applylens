@@ -26,6 +26,7 @@ import time
 
 import httpx
 
+from . import cassette
 from .config import GROQ_API_KEY, GROQ_MODEL, GROQ_URL
 from .resilience import CircuitBreaker, CircuitOpen
 from .trace import record_llm_call
@@ -128,12 +129,20 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
     """
     global _working_model, _schema_supported
 
+    base = {"temperature": temperature, "messages": messages}
+    fmt_for_key = _response_format(json_mode, schema)
+    tape_key = cassette.key_for(messages, temperature, fmt_for_key) if cassette.enabled() else None
+
+    # Replay never touches the network, and a miss is an error rather than a
+    # quiet live call.
+    if tape_key and cassette.MODE == "replay":
+        record_llm_call("cassette", None, 0.0)
+        return cassette.playback(tape_key)
+
     if not GROQ_API_KEY:
         raise LLMError("GROQ_API_KEY is not set (see backend/.env.example)")
 
     _breaker.before_call()
-
-    base = {"temperature": temperature, "messages": messages}
     last_error = None
     last_status = None
 
@@ -170,7 +179,10 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
                                     retried=attempt > 1)
                     _working_model = model
                     _breaker.record_success()
-                    return data["choices"][0]["message"]["content"]
+                    content = data["choices"][0]["message"]["content"]
+                    if tape_key and cassette.MODE == "record":
+                        cassette.record(tape_key, content, model, data.get("usage"))
+                    return content
 
                 record_llm_call(model, None, elapsed, status=resp.status_code,
                                 retried=attempt > 1)

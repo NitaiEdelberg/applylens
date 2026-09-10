@@ -20,7 +20,7 @@ function tokens(stage) {
   )
 }
 
-export default function RunTrace({ trace }) {
+export default function RunTrace({ trace, degraded }) {
   if (!trace || !trace.stages || trace.stages.length === 0) return null
 
   const totals = trace.totals || {}
@@ -73,6 +73,17 @@ export default function RunTrace({ trace }) {
               <span className="runtrace__tokens">
                 {stage.error ? stage.error : tokens(stage) ? `${tokens(stage).toLocaleString()} tok` : '—'}
               </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {(degraded || []).length > 0 && (
+        <ul className="runtrace__degraded">
+          {degraded.map((d, i) => (
+            <li key={i}>
+              Skipped the {d.step.replace(/_/g, ' ')} to stay inside this run's
+              budget ({d.reason}). Your bullets were still fact-checked.
             </li>
           ))}
         </ul>
