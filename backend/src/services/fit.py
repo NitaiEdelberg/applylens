@@ -1,10 +1,11 @@
 """Score how well a CV matches a job — strictly evidence-based."""
 from ..llm import chat_json
+from .untrusted import GUARD, as_data
 
 SYSTEM = (
     "You score how well a candidate's CV matches a job's requirements. "
     "Be strict and evidence-based; never credit a skill the CV does not show. "
-    "Respond with JSON only."
+    "Respond with JSON only. " + GUARD
 )
 
 
@@ -38,10 +39,10 @@ async def score_fit(jd_text: str, cv_text: str) -> dict:
 Only use evidence actually present in the CV. Do not invent experience.
 
 JOB:
-\"\"\"{jd_text}\"\"\"
+{as_data("JOB", jd_text)}
 
 CV:
-\"\"\"{cv_text}\"\"\""""
+{as_data("CV", cv_text)}"""
     data = await chat_json(
         [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
         temperature=0.1,

@@ -39,6 +39,8 @@ from .services.fit import score_fit
 from .services.tailor import tailor, regenerate_bullet
 from .services.skillmatch import skill_match
 from .services.rag import retrieve_context, default_source
+from .services.redact import redact, restore_deep, summary as redaction_summary
+from .services.screen import screen_input
 from .services import search as es_search
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -167,13 +169,27 @@ async def api_analyze(req: AnalyzeRequest):
         cached = RequestTrace(**dict(trace.as_dict(), cached=True))
         return hit.model_copy(update={"trace": cached})
 
+    # Personal details are stripped before anything leaves this box, and put
+    # back on the way out. The analysis never needed the phone number.
+    cv_text, personal = redact(req.cv_text)
+    career_text, career_personal = redact(career_text)
+    personal.update(career_personal)
+
+    # The job description is text someone copied off a website: screen it for
+    # instructions aimed at the model. This never blocks — it reports.
+    screening = await traced("screen", screen_input, req.jd_text, "job description")
+
     if career_text:
         rag_info, job, fit, tailored = await _safe(
-            _analyze_with_rag, req.jd_text, req.cv_text, career_text
+            _analyze_with_rag, req.jd_text, cv_text, career_text
         )
     else:
-        job, fit, tailored = await _safe(_gather_analyze, req.jd_text, req.cv_text)
+        job, fit, tailored = await _safe(_gather_analyze, req.jd_text, cv_text)
         rag_info = {"used": False, "chunks": [], "source": default_source()}
+
+    job, fit, tailored, rag_info = restore_deep(
+        [job, fit, tailored, rag_info], personal
+    )
 
     # Deterministic, CPU-only second opinion: term coverage of the extracted
     # requirements by the CV. No LLM call, so no extra latency.
@@ -182,6 +198,8 @@ async def api_analyze(req: AnalyzeRequest):
     response = AnalyzeResponse(
         job=job, fit=fit, tailor=tailored, skill_match=match, rag=rag_info,
         trace=trace.as_dict(),
+        screening=screening,
+        privacy={"redacted": redaction_summary(personal)},
     )
     _analysis_cache.set(key, response)
     log_event("analyze.done", **trace.as_dict()["totals"])
@@ -436,6 +454,57 @@ def api_tracker_delete(
     db.commit()
     es_search.delete_app(app_id)  # best-effort remove from the index; non-fatal
     return {"ok": True}
+
+
+@app.delete("/api/account")
+def api_delete_account(
+    user: User = Depends(current_user),
+    db: Session = Depends(get_session),
+):
+    """Delete the account and everything stored under it, for good.
+
+    Offering an account that keeps someone's CV analyses without offering a way
+    to remove them is half a feature. This deletes the tracker rows (including
+    the stored analysis payloads, which contain CV-derived text), drops them
+    from the search index, and then deletes the user, so a later login finds
+    nothing rather than an empty shell.
+    """
+    rows = db.scalars(
+        select(TrackedApplication).where(TrackedApplication.user_id == user.id)
+    ).all()
+    for row in rows:
+        es_search.delete_app(row.id)  # best-effort; the DB is the source of truth
+        db.delete(row)
+    email = user.email
+    db.delete(user)
+    db.commit()
+    log_event("account.deleted", applications=len(rows))
+    logging.info("account deleted (%d applications)", len(rows))
+    return {"ok": True, "deleted_applications": len(rows), "email": email}
+
+
+@app.get("/api/privacy")
+def api_privacy():
+    """What this service keeps, for how long, and what it never sends onward.
+
+    Machine-readable so the UI states the same policy the code implements,
+    instead of a document that drifts away from it.
+    """
+    return {
+        "sent_to_the_model": (
+            "The job description, and your CV with contact details replaced by "
+            "placeholders. Email addresses, phone numbers, ID numbers, street "
+            "addresses and social links never leave this server."
+        ),
+        "stored_without_an_account": "Nothing. The tracker lives in your browser.",
+        "stored_with_an_account": (
+            "Your email, a hash of your password, and the analyses you chose to "
+            "save to the tracker."
+        ),
+        "retention": "Saved analyses are kept until you delete them or your account.",
+        "delete_everything": "DELETE /api/account",
+        "third_parties": ["Groq (model inference)", "JailbreakAPI (input screening)"],
+    }
 
 
 @app.get("/api/keepalive")

@@ -1,7 +1,11 @@
 """Turn a raw job description into structured requirements."""
 from ..llm import chat_json
+from .untrusted import GUARD, as_data
 
-SYSTEM = "You extract structured hiring requirements from a job description. Respond with JSON only."
+SYSTEM = (
+    "You extract structured hiring requirements from a job description. "
+    "Respond with JSON only. " + GUARD
+)
 
 # The shape is enforced by the decoder where the model supports it, so a
 # malformed reply is not a failure mode we have to catch. See llm.chat.
@@ -29,7 +33,7 @@ async def extract_job(jd_text: str) -> dict:
 Keep each item short (a few words). Do not invent requirements that aren't in the text.
 
 JOB DESCRIPTION:
-\"\"\"{jd_text}\"\"\""""
+{as_data("JOB_DESCRIPTION", jd_text)}"""
     data = await chat_json(
         [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
         temperature=0.1,

@@ -132,3 +132,51 @@ def test_keepalive_ok():
     r = client.get("/api/keepalive")
     assert r.status_code == 200
     assert r.json() == {"ok": True}
+
+
+# ---- account deletion (D4) ----
+def _account(email="delete-me@example.com", password="hunter2hunter2"):
+    client.post("/api/auth/register", json={"email": email, "password": password})
+    token = client.post("/api/auth/login",
+                        json={"email": email, "password": password}).json()["token"]
+    return token, {"Authorization": "Bearer " + token}
+
+
+def test_deleting_an_account_takes_the_saved_analyses_with_it():
+    token, headers = _account("gone@example.com")
+    client.post("/api/tracker", json={"title": "Role A", "company": "Acme"}, headers=headers)
+    client.post("/api/tracker", json={"title": "Role B", "company": "Acme"}, headers=headers)
+    assert len(client.get("/api/tracker", headers=headers).json()) == 2
+
+    result = client.delete("/api/account", headers=headers)
+    assert result.status_code == 200
+    assert result.json()["deleted_applications"] == 2
+
+    # The token is now for a user that no longer exists.
+    assert client.get("/api/tracker", headers=headers).status_code == 401
+
+
+def test_the_email_is_free_again_after_deletion():
+    email = "reuse@example.com"
+    _, headers = _account(email)
+    client.delete("/api/account", headers=headers)
+    again = client.post("/api/auth/register", json={"email": email, "password": "hunter2hunter2"})
+    assert again.status_code == 200, "deleted means deleted, not reserved forever"
+
+
+def test_deleting_an_account_needs_to_be_signed_in():
+    assert client.delete("/api/account").status_code == 401
+
+
+def test_one_persons_deletion_does_not_touch_another():
+    _, mine = _account("mine@example.com")
+    _, theirs = _account("theirs@example.com")
+    client.post("/api/tracker", json={"title": "Theirs"}, headers=theirs)
+    client.delete("/api/account", headers=mine)
+    assert len(client.get("/api/tracker", headers=theirs).json()) == 1
+
+
+def test_the_privacy_policy_is_served_from_the_code():
+    policy = client.get("/api/privacy").json()
+    assert policy["delete_everything"] == "DELETE /api/account"
+    assert "Groq" in " ".join(policy["third_parties"])

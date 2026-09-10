@@ -214,3 +214,8 @@ export const cloudUpdateStatus = (token, id, status) =>
 
 export const cloudDeleteApp = (token, id) =>
   jsonRequest(`/api/tracker/${id}`, { method: 'DELETE', token })
+
+// Deletes the account and every analysis saved under it. There is no undo, so
+// every caller must confirm first.
+export const cloudDeleteAccount = (token) =>
+  jsonRequest('/api/account', { method: 'DELETE', token })

@@ -74,7 +74,8 @@ def test_default_source_no_key(monkeypatch):
 
 
 # ---- /api/analyze integration with a mocked LLM ----
-_CV_RE = re.compile(r'CV:\s*"""(.*?)"""', re.DOTALL)
+# The CV now travels inside the untrusted-data block (see services/untrusted.py).
+_CV_RE = re.compile(r"CV:\n<<<BEGIN_UNTRUSTED_CV>>>\n(.*?)\n<<<END_UNTRUSTED_CV>>>", re.S)
 
 
 def _cv_block(prompt: str) -> str:

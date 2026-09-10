@@ -21,6 +21,7 @@ import asyncio
 import json
 import os
 import random
+import re
 import time
 
 import httpx
@@ -91,6 +92,24 @@ def _is_transient(status: int) -> bool:
     return status == 429 or 500 <= status < 600
 
 
+# Groq says exactly how long to wait ("Please try again in 2.58s"). Guessing an
+# exponential backoff when the server has told you the number is silly, and on
+# the free tier's per-minute token budget the guess is usually far too short.
+_RETRY_HINT = re.compile(r"try again in ([\d.]+)\s*s", re.IGNORECASE)
+
+
+def _retry_after(headers, body: str):
+    """Seconds the upstream asked us to wait, if it said."""
+    header = headers.get("retry-after") if headers else None
+    if header:
+        try:
+            return float(header)
+        except ValueError:
+            pass
+    found = _RETRY_HINT.search(body or "")
+    return float(found.group(1)) if found else None
+
+
 def _response_format(json_mode: bool, schema):
     if schema and _schema_supported:
         return {"type": "json_schema",
@@ -116,6 +135,7 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
 
     base = {"temperature": temperature, "messages": messages}
     last_error = None
+    last_status = None
 
     async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
         for model in _candidates():
@@ -133,6 +153,7 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
                         json=body,
                     )
                 except (httpx.TimeoutException, httpx.TransportError) as exc:
+                    last_status = 0
                     record_llm_call(model, None, time.monotonic() * 1000 - started,
                                     status=0, retried=attempt > 1)
                     last_error = "Groq unreachable: {}".format(exc)
@@ -154,6 +175,7 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
                 record_llm_call(model, None, elapsed, status=resp.status_code,
                                 retried=attempt > 1)
                 text = resp.text[:300]
+                last_status = resp.status_code
                 last_error = "Groq API {}: {}".format(resp.status_code, text)
 
                 # An unsupported schema is our fault, not the upstream's: drop
@@ -164,9 +186,13 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
                     continue
 
                 if _is_transient(resp.status_code):
-                    _breaker.record_failure()
+                    # A rate limit means we are asking too fast, not that the
+                    # upstream is broken: counting it as a breaker failure would
+                    # take the app down during its busiest minute.
+                    if resp.status_code != 429:
+                        _breaker.record_failure()
                     if attempt < MAX_ATTEMPTS:
-                        await _backoff(attempt)
+                        await _backoff(attempt, _retry_after(resp.headers, text))
                         continue
                     break
 
@@ -176,12 +202,22 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
                 _breaker.record_failure()
                 raise LLMError(last_error)
 
-    _breaker.record_failure()
+    # Same reasoning as inside the loop: exhausting the retries against a rate
+    # limit says we were too fast, not that the upstream is down.
+    if last_status != 429:
+        _breaker.record_failure()
     raise LLMError(last_error or "No usable Groq model")
 
 
-async def _backoff(attempt: int) -> None:
-    """Exponential, with jitter so concurrent stages don't retry in lockstep."""
+async def _backoff(attempt: int, asked_for=None) -> None:
+    """Wait as long as the upstream asked, else exponential with jitter.
+
+    The jitter matters because analyze fires three stages at once: without it
+    they retry in lockstep and hit the same limit together.
+    """
+    if asked_for:
+        await asyncio.sleep(min(asked_for + 0.25, 60) * (1 + 0.1 * random.random()))
+        return
     delay = BACKOFF_BASE * (2 ** (attempt - 1))
     await asyncio.sleep(delay * (0.5 + random.random()))
 

@@ -2,6 +2,7 @@
 import asyncio
 
 from ..llm import chat_json
+from .untrusted import GUARD, as_data
 from .grounding import check_grounding, check_cover_letter
 
 SYSTEM = (
@@ -9,7 +10,7 @@ SYSTEM = (
     "specific target job: you reframe, rephrase, reorder, and emphasize their CV so "
     "it speaks directly to what THIS job asks for. You must stay truthful — every "
     "claim must be grounded in the CV — but you must NOT simply copy CV sentences: "
-    "adapt them to the job. Respond with JSON only."
+    "adapt them to the job. Respond with JSON only. " + GUARD
 )
 
 
@@ -44,10 +45,10 @@ STAY VERIFIABLE (non-negotiable — every bullet is fact-checked against the CV)
 - If in doubt, prefer a faithful rewording over an impressive-sounding claim.
 
 JOB:
-\"\"\"{jd_text}\"\"\"
+{as_data("JOB", jd_text)}
 
 CV:
-\"\"\"{cv_text}\"\"\"
+{as_data("CV", cv_text)}
 
 Return JSON: {{"bullets": [str], "cover_letter": str}}"""
     data = await chat_json(
@@ -85,7 +86,7 @@ _REGEN_SYSTEM = (
     "bullet was flagged by a fact-checker for making a claim the CV does not "
     "support. Rewrite it to keep the JD relevance but drop or replace the "
     "unsupported claim with something the CV actually backs. Never invent skills, "
-    "tools, employers, titles, or metrics. Respond with JSON only."
+    "tools, employers, titles, or metrics. Respond with JSON only. " + GUARD
 )
 
 
@@ -109,13 +110,13 @@ Rules:
 - Return exactly one replacement bullet.
 
 JOB:
-\"\"\"{jd_text}\"\"\"
+{as_data("JOB", jd_text)}
 
 CV:
-\"\"\"{cv_text}\"\"\"
+{as_data("CV", cv_text)}
 
 PREVIOUS (flagged) BULLET:
-\"\"\"{bullet}\"\"\"
+{as_data("BULLET", bullet)}
 
 Return JSON: {{"bullet": str}}"""
     data = await chat_json(

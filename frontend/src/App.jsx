@@ -7,12 +7,14 @@ import {
   cloudSaveApp,
   cloudUpdateStatus,
   cloudDeleteApp,
+  cloudDeleteAccount,
   cloudSearchApps,
 } from './api.js'
 import GuardrailPanel from './components/GuardrailPanel.jsx'
 import FitGauge from './components/FitGauge.jsx'
 import SkillCoverage from './components/SkillCoverage.jsx'
 import RunTrace from './components/RunTrace.jsx'
+import InputSafety from './components/InputSafety.jsx'
 import Tracker from './components/Tracker.jsx'
 import TrustPanel, { TrustBadge } from './components/TrustPanel.jsx'
 import AuthPanel from './components/AuthPanel.jsx'
@@ -305,6 +307,25 @@ export default function App() {
     setImportOffer(local.length)
   }
 
+  async function onDeleteAccount() {
+    const confirmed = window.confirm(
+      `Delete the account for ${email}?\n\n` +
+        'Every analysis you saved to the tracker is deleted with it. ' +
+        'This cannot be undone.'
+    )
+    if (!confirmed) return
+    try {
+      const result = await cloudDeleteAccount(token)
+      onSignOut()
+      window.alert(
+        `Account deleted, along with ${result.deleted_applications} saved ` +
+          `${result.deleted_applications === 1 ? 'analysis' : 'analyses'}.`
+      )
+    } catch (err) {
+      setTrackerError(err.message || 'Could not delete the account. Try again.')
+    }
+  }
+
   function onSignOut() {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(EMAIL_KEY)
@@ -498,6 +519,14 @@ export default function App() {
               <button type="button" className="btn btn--ghost btn--sm" onClick={onSignOut}>
                 Sign out
               </button>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm auth__delete"
+                onClick={onDeleteAccount}
+                title="Delete this account and every analysis saved under it"
+              >
+                Delete account
+              </button>
             </div>
           ) : (
             <button
@@ -660,6 +689,7 @@ export default function App() {
           <section className="panel" aria-label="Results">
             {result ? (
               <>
+                <InputSafety screening={result.screening} privacy={result.privacy} />
                 <RagNote rag={result.rag} />
                 <GuardrailPanel tailor={result.tailor} jdText={analyzedJd} cvText={analyzedCv} />
                 <TrustPanel />

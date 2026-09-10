@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import json
 from ..llm import chat_json
+from .untrusted import GUARD, as_data
 
 SYSTEM = (
     "You are a strict fact-checker that prevents resume fabrication. "
     "A statement is SUPPORTED only if the CV contains evidence for every specific "
     "claim it makes (skill, tool, employer, title, metric). If any part is not in "
-    "the CV, it is NOT supported. Respond with JSON only."
+    "the CV, it is NOT supported. Respond with JSON only. " + GUARD
 )
 
 
@@ -43,7 +44,7 @@ Return JSON: {{"checks": [{{"statement": str, "supported": bool,
 - issue: what specifically is unsupported/invented (when not supported)
 
 CV:
-\"\"\"{cv_text}\"\"\"
+{as_data("CV", cv_text)}
 
 STATEMENTS:
 {json.dumps(statements, ensure_ascii=False)}"""

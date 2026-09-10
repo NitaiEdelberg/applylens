@@ -105,6 +105,28 @@ class SkillMatch(BaseModel):
     method: str = "term coverage"
 
 
+# ---- untrusted-input screening + privacy ----
+class ScreenSignal(BaseModel):
+    matched: str = ""
+    why: str = ""
+    source: str = "local"
+
+
+class Screening(BaseModel):
+    suspicious: bool = False
+    signals: List[ScreenSignal] = []
+    checked_by: List[str] = []
+    # "ok" or "unavailable": the remote detector runs on a free instance that
+    # sleeps, and a screen that did not happen must not read as one that passed.
+    remote: str = "unavailable"
+    label: str = ""
+
+
+class Privacy(BaseModel):
+    # e.g. {"email": 1, "phone": 1} — what never reached the model.
+    redacted: dict = {}
+
+
 # ---- per-request trace ----
 class LLMCall(BaseModel):
     model: str
@@ -165,6 +187,11 @@ class AnalyzeResponse(BaseModel):
     # What actually happened inside this request: stages, latency, tokens, and
     # the model that answered. Empty on responses produced before tracing.
     trace: Optional[RequestTrace] = None
+    # Whether the job description tried to talk to the model instead of
+    # describing a job, and which detectors got to look.
+    screening: Optional[Screening] = None
+    # What was stripped from the CV before it left this server.
+    privacy: Optional[Privacy] = None
 
 
 # ---- optional accounts (Circle 3) ----

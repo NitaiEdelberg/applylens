@@ -181,3 +181,60 @@ def test_gives_up_when_every_model_is_retired(monkeypatch):
         asyncio.run(llm.chat([{"role": "user", "content": "hi"}]))
     assert "404" in str(exc.value)
     assert tried == ["dead-model", *llm.FALLBACK_MODELS]
+
+
+def test_a_rate_limit_does_not_open_the_breaker(monkeypatch):
+    # Being told to slow down is not the upstream being broken. Counting it as
+    # a failure would take the app down exactly when it is busiest.
+    def handler(request):
+        return httpx.Response(429, json={"error": "slow down"})
+
+    monkeypatch.setattr(llm, "GROQ_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setattr(llm.httpx, "AsyncClient", _fake_groq(handler))
+    breaker = CircuitBreaker(failure_threshold=2)
+    monkeypatch.setattr(llm, "_breaker", breaker)
+
+    for _ in range(3):
+        with pytest.raises(llm.LLMError):
+            asyncio.run(llm.chat([{"role": "user", "content": "hi"}]))
+    assert breaker.state == "closed"
+
+
+def test_it_waits_as_long_as_the_upstream_asked(monkeypatch):
+    slept = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    def handler(request):
+        if len(slept) >= 1:
+            return _ok()
+        return httpx.Response(429, json={"error": {
+            "message": "Rate limit reached ... Please try again in 4.5s."}})
+
+    monkeypatch.setattr(llm, "GROQ_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setattr(llm.httpx, "AsyncClient", _fake_groq(handler))
+    monkeypatch.setattr(llm.asyncio, "sleep", fake_sleep)
+
+    asyncio.run(llm.chat([{"role": "user", "content": "hi"}]))
+    assert slept and 4.5 <= slept[0] <= 6, "should honour the stated wait, not guess"
+
+
+def test_a_retry_after_header_wins_over_the_message(monkeypatch):
+    slept = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    def handler(request):
+        if len(slept) >= 1:
+            return _ok()
+        return httpx.Response(429, headers={"retry-after": "12"},
+                              json={"error": {"message": "try again in 1s"}})
+
+    monkeypatch.setattr(llm, "GROQ_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setattr(llm.httpx, "AsyncClient", _fake_groq(handler))
+    monkeypatch.setattr(llm.asyncio, "sleep", fake_sleep)
+
+    asyncio.run(llm.chat([{"role": "user", "content": "hi"}]))
+    assert slept[0] >= 12
