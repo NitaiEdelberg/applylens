@@ -35,7 +35,7 @@ evals/run_evals.py     grounding guardrail → accuracy + fabrication precision/
 
 ## Tech stack
 
-**Backend:** Python · FastAPI · httpx · Groq (`llama-3.3-70b-versatile`) · scikit-learn (deterministic keyword-coverage skill-match + RAG TF-IDF fallback embedder) · LangChain (`langchain-core` retrieval chain for the optional RAG career corpus) · SQLAlchemy (accounts + cloud tracker; SQLite locally, Postgres in prod) · passlib/bcrypt + PyJWT (auth)
+**Backend:** Python · FastAPI · httpx · Groq (`openai/gpt-oss-120b`, with a fallback to another live model if the id is retired) · scikit-learn (deterministic keyword-coverage skill-match + RAG TF-IDF fallback embedder) · LangChain (`langchain-core` retrieval chain for the optional RAG career corpus) · SQLAlchemy (accounts + cloud tracker; SQLite locally, Postgres in prod) · passlib/bcrypt + PyJWT (auth)
 **Frontend:** React + Vite
 **Evals:** labeled JSONL dataset + a runnable scorer
 
