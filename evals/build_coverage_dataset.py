@@ -48,6 +48,7 @@ os.environ.setdefault("LLM_MAX_ATTEMPTS", "6")
 os.environ.setdefault("LLM_BACKOFF_SECONDS", "4")
 os.environ.setdefault("LLM_TIMEOUT_SECONDS", "90")
 
+from src import llm  # noqa: E402
 from src.llm import LLMError, chat_json  # noqa: E402
 from src.services.extract import extract_job  # noqa: E402
 from src.services.skillmatch import skill_match  # noqa: E402
@@ -132,7 +133,7 @@ class Pacer:
         self.spent = []  # (timestamp, tokens)
 
     def _prune(self, now):
-        self.spent = [(t, n) for t, n in self.spent if now - t < 60]
+        self.spent = [entry for entry in self.spent if now - entry[0] < 60]
 
     async def reserve(self, estimated_tokens):
         while True:
@@ -140,19 +141,36 @@ class Pacer:
             self._prune(now)
             used = sum(n for _, n in self.spent)
             if used + estimated_tokens <= self.budget or not self.spent:
-                self.spent.append((now, estimated_tokens))
+                self.spent.append([now, estimated_tokens])
                 return
             oldest = min(t for t, _ in self.spent)
             wait = max(1.0, 60 - (now - oldest))
             log("pacing: {} tokens used this minute, waiting {:.0f}s".format(used, wait))
             await asyncio.sleep(wait)
 
+    def observed(self):
+        return sum(n for _, n in self.spent)
+
+    def settle(self):
+        """Replace the last estimate with what the call actually cost.
+
+        Character-count estimates under-count by a lot on a model that bills
+        its own reasoning tokens, and an estimate that is half the real cost
+        means every call gets rate limited and the run crawls.
+        """
+        usage = getattr(llm, "LAST_USAGE", None) or {}
+        total = (usage.get("total_tokens")
+                 or (usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0)))
+        if total and self.spent:
+            self.spent[-1][1] = total
+            self.last_actual = total
+
 
 def estimate_tokens(*texts, expected_output=350):
     return sum(len(t or "") for t in texts) // 4 + expected_output
 
 
-PACER = Pacer(int(os.getenv("BUILD_TPM_BUDGET", "6500")))
+PACER = Pacer(int(os.getenv("BUILD_TPM_BUDGET", "3000")))
 
 
 def log(message):
@@ -262,6 +280,7 @@ async def generate_jds(count):
                   "vaguer asks, then nice-to-haves. 200-350 words. Vary the seniority and "
                   "the industry from a typical posting.".format(role)}],
                 temperature=0.9, schema=JD_SCHEMA)
+            PACER.settle()
         except LLMError as exc:
             log("generation failed: {}".format(exc))
             continue
@@ -304,6 +323,7 @@ async def build_cv_pool():
                   "headings, no invented awards. Name the tools the way a real CV does: "
                   "some explicitly, some only implied by what was built.".format(brief)}],
                 temperature=0.8, schema=CV_SCHEMA)
+            PACER.settle()
         except LLMError as exc:
             log("cv generation failed: {}".format(exc))
             continue
@@ -325,6 +345,7 @@ async def extract_requirements(jds):
         await PACER.reserve(estimate_tokens(jd["text"], expected_output=300))
         try:
             job = await extract_job(jd["text"])
+            PACER.settle()
         except LLMError as exc:
             log("extract failed for {}: {}".format(jd["id"], exc))
             continue
@@ -367,19 +388,29 @@ async def label_batch(cv_text, items):
         [{"role": "system", "content": ANNOTATOR_SYSTEM},
          {"role": "user", "content":
           'Return json with key "labels": one entry per requirement, each with index, '
-          'verdict (covered, missing, or uncertain) and a one-sentence reason quoting '
-          "the CV where it exists.\n\nCV:\n\"\"\"{}\"\"\"\n\nREQUIREMENTS:\n{}".format(
+          'verdict (covered, missing, or uncertain) and a reason of AT MOST 10 words. '
+          "Be brief; the verdict matters more than the prose.\n\nCV:\n\"\"\"{}\"\"\""
+          "\n\nREQUIREMENTS:\n{}".format(
               cv_text, listed)}],
         temperature=0.0, schema=LABEL_SCHEMA)
+    PACER.settle()
+    # The schema is not strictly enforced by every model, so this has seen
+    # `labels` come back as a list of bare strings. One malformed batch must
+    # cost that batch, not the whole run.
     out = {}
-    for entry in data.get("labels", []):
-        index = entry.get("index")
+    raw = data.get("labels")
+    if isinstance(raw, dict):
+        raw = list(raw.values())
+    for position, entry in enumerate(raw or []):
+        if not isinstance(entry, dict):
+            continue
+        index = entry.get("index", position)
         if isinstance(index, int) and 0 <= index < len(items):
             out[index] = entry
     return out
 
 
-async def label_pairs(pairs, cvs, batch_size=8, pause=0.4):
+async def label_pairs(pairs, cvs, batch_size=8, pause=0.2):
     done = {row["pair_id"] for row in read_jsonl(LABELS_PATH)}
     todo = [p for p in pairs if p["pair_id"] not in done]
     log("labelling {} pairs ({} already done)".format(len(todo), len(done)))
@@ -399,6 +430,10 @@ async def label_pairs(pairs, cvs, batch_size=8, pause=0.4):
                 log("label batch failed ({}): {}".format(cv_key, exc))
                 await asyncio.sleep(5)
                 continue
+            except Exception as exc:  # noqa: BLE001 — one bad batch, not the run
+                log("label batch unusable ({}): {}: {}".format(
+                    cv_key, type(exc).__name__, exc))
+                continue
             for index, pair in enumerate(batch):
                 entry = verdicts.get(index)
                 if not entry:
@@ -411,8 +446,9 @@ async def label_pairs(pairs, cvs, batch_size=8, pause=0.4):
                     rule_says_covered=rule,
                 ))
                 labelled += 1
-            if labelled and labelled % 80 == 0:
-                log("labelled {}".format(labelled))
+            if labelled and labelled % 40 == 0:
+                log("labelled {} (last call {} tokens, {} in the last minute)".format(
+                    labelled, getattr(PACER, "last_actual", "?"), PACER.observed()))
             await asyncio.sleep(pause)
     log("labelled {} new pairs".format(labelled))
 

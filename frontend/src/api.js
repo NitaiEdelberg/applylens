@@ -215,6 +215,10 @@ export const cloudUpdateStatus = (token, id, status) =>
 export const cloudDeleteApp = (token, id) =>
   jsonRequest(`/api/tracker/${id}`, { method: 'DELETE', token })
 
+// "The guardrail got this one wrong." Fire-and-forget: never block the UI on it.
+export const sendGroundingFeedback = (body) =>
+  jsonRequest('/api/feedback/grounding', { method: 'POST', body })
+
 // Deletes the account and every analysis saved under it. There is no undo, so
 // every caller must confirm first.
 export const cloudDeleteAccount = (token) =>

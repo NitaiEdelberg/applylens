@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { regenerateBullet } from '../api.js'
+import { regenerateBullet, sendGroundingFeedback } from '../api.js'
 
 // Zip a bullet with its grounding verdict. A genuinely-absent grounding entry
 // falls back to verified styling (the guardrail never invents a red flag).
@@ -115,6 +115,9 @@ export default function GuardrailPanel({ tailor, jdText, cvText }) {
   const [fixing, setFixing] = useState(() => initialItems.map(() => false))
   const [fixError, setFixError] = useState(() => initialItems.map(() => null))
   const [copied, setCopied] = useState(false)
+  // Verdicts the reader says are wrong. These are the rows worth having: the
+  // guardrail's own mistakes, reported by the one person who knows the CV.
+  const [disputed, setDisputed] = useState({})
 
   useEffect(() => {
     setItems(initialItems)
@@ -129,6 +132,24 @@ export default function GuardrailPanel({ tailor, jdText, cvText }) {
 
   function toggle(i) {
     setIncluded((prev) => prev.map((v, idx) => (idx === i ? !v : v)))
+  }
+
+  // A disputed verdict is stored, never applied: the badge stays as the
+  // guardrail called it. Silently flipping it would hide the disagreement,
+  // which is the only thing worth recording.
+  async function dispute(i, item, modelSaidSupported) {
+    setDisputed((d) => ({ ...d, [i]: true }))
+    try {
+      await sendGroundingFeedback({
+        statement: item.text,
+        cv_excerpt: (cvText || '').slice(0, 4000),
+        model_supported: modelSaidSupported,
+        human_supported: !modelSaidSupported,
+        issue: item.issue || '',
+      })
+    } catch {
+      // Losing a feedback row is not worth interrupting anyone over.
+    }
   }
 
   async function fixBullet(i) {
@@ -252,8 +273,8 @@ export default function GuardrailPanel({ tailor, jdText, cvText }) {
                 <span className="gcard__detail-label">{ok ? 'Evidence' : 'Reason'}</span>
                 {detail}
               </div>
-              {!ok && canFix && (
-                <div className="gcard__actions">
+              <div className="gcard__actions">
+                {!ok && canFix && (
                   <button
                     type="button"
                     className="btn btn--ghost btn--sm gcard__fix"
@@ -263,9 +284,18 @@ export default function GuardrailPanel({ tailor, jdText, cvText }) {
                     {isFixing && <span className="spinner spinner--accent" aria-hidden="true" />}
                     {isFixing ? 'Fixing…' : it.corrected ? 'Try fixing again' : 'Fix this bullet'}
                   </button>
-                  {fixError[i] && <span className="gcard__fix-error">{fixError[i]}</span>}
-                </div>
-              )}
+                )}
+                <button
+                  type="button"
+                  className="gcard__dispute"
+                  onClick={() => dispute(i, it, ok)}
+                  disabled={!!disputed[i]}
+                  title="Tell me this verdict is wrong. It goes into the test set the guardrail is scored against."
+                >
+                  {disputed[i] ? '✓ Thanks — noted' : ok ? 'This is not in my CV' : 'My CV does say this'}
+                </button>
+                {fixError[i] && <span className="gcard__fix-error">{fixError[i]}</span>}
+              </div>
             </li>
           )
         })}

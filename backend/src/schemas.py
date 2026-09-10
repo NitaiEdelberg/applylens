@@ -118,6 +118,15 @@ class SkillMatch(BaseModel):
     method: str = "term coverage"
 
 
+class GroundingFeedback(BaseModel):
+    """"The guardrail got this one wrong" — the only data worth collecting."""
+    statement: str
+    cv_excerpt: str = ""
+    model_supported: bool = False
+    human_supported: bool = True
+    issue: Optional[str] = None
+
+
 # ---- untrusted-input screening + privacy ----
 class ScreenSignal(BaseModel):
     matched: str = ""

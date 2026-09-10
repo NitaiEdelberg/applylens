@@ -65,6 +65,35 @@ class User(Base):
     )
 
 
+class GuardrailFeedback(Base):
+    """A verdict a person disagreed with, kept so the eval set grows from use.
+
+    The guardrail's mistakes are the most valuable data this product produces
+    and it was throwing all of them away. Rows here are promoted into
+    evals/dataset.jsonl by evals/promote_feedback.py after review — never
+    automatically, because a training set fed by unreviewed clicks is a
+    training set that learns whatever annoys people.
+
+    Deliberately not linked to a user: this is about a statement and a CV
+    excerpt, and attaching an identity to it would make it a record of who
+    applied where.
+    """
+
+    __tablename__ = "guardrail_feedback"
+
+    id = Column(Integer, primary_key=True)
+    statement = Column(Text, nullable=False)
+    # The CV, already redacted by services/redact.py before it ever reached the
+    # model, truncated to the part that matters.
+    cv_excerpt = Column(Text, nullable=False, default="")
+    # What the guardrail said, and what the person said it should have been.
+    model_supported = Column(Integer, nullable=False, default=0)
+    human_supported = Column(Integer, nullable=False, default=0)
+    issue = Column(Text, nullable=True)
+    promoted = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class TrackedApplication(Base):
     __tablename__ = "tracked_applications"
 

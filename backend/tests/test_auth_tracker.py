@@ -180,3 +180,42 @@ def test_the_privacy_policy_is_served_from_the_code():
     policy = client.get("/api/privacy").json()
     assert policy["delete_everything"] == "DELETE /api/account"
     assert "Groq" in " ".join(policy["third_parties"])
+
+
+# ---- guardrail feedback, the flywheel's first turn (E3) ----
+def test_a_disputed_verdict_is_recorded():
+    result = client.post("/api/feedback/grounding", json={
+        "statement": "Wrote SQL against Snowflake",
+        "cv_excerpt": "Queried Snowflake daily. Reach me at me@example.com",
+        "model_supported": False,
+        "human_supported": True,
+        "issue": "The CV clearly says Snowflake",
+    })
+    assert result.status_code == 200 and result.json()["ok"] is True
+
+
+def test_feedback_needs_a_statement():
+    assert client.post("/api/feedback/grounding", json={"statement": "  "}).status_code == 400
+
+
+def test_feedback_is_redacted_again_on_the_way_in():
+    # The frontend redacts, but the endpoint is public: never trust the client
+    # with what gets written to a database.
+    from src.db_sql import GuardrailFeedback, SessionLocal
+
+    client.post("/api/feedback/grounding", json={
+        "statement": "Contactable at leaked@example.com",
+        "cv_excerpt": "Call 054-123-4567 for a reference",
+        "model_supported": True, "human_supported": False,
+    })
+    with SessionLocal() as db:
+        rows = db.query(GuardrailFeedback).all()
+    blob = " ".join((r.statement or "") + (r.cv_excerpt or "") for r in rows)
+    assert "leaked@example.com" not in blob
+    assert "054-123-4567" not in blob
+
+
+def test_feedback_does_not_record_who_sent_it():
+    from src.db_sql import GuardrailFeedback
+    assert not hasattr(GuardrailFeedback, "user_id"), \
+        "this is about a statement, not about who applied where"

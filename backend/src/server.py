@@ -15,7 +15,7 @@ from .cache import ResultCache, fingerprint
 from .llm import LLMError
 from .resilience import CircuitOpen
 from .trace import log_event, start_trace, traced
-from .db_sql import TrackedApplication, User, get_session, init_db
+from .db_sql import GuardrailFeedback, TrackedApplication, User, get_session, init_db
 from .security import create_token, decode_token, hash_password, verify_password
 from .services.resume import ResumeParseError, extract_text
 from .schemas import (
@@ -26,6 +26,7 @@ from .schemas import (
     TailorResult,
     AnalyzeResponse,
     RegenerateBulletRequest,
+    GroundingFeedback,
     RequestTrace,
     RegenerateBulletResponse,
     AuthRequest,
@@ -453,6 +454,37 @@ def api_tracker_delete(
     db.delete(row)
     db.commit()
     es_search.delete_app(app_id)  # best-effort remove from the index; non-fatal
+    return {"ok": True}
+
+
+@app.post("/api/feedback/grounding")
+def api_grounding_feedback(req: GroundingFeedback, db: Session = Depends(get_session)):
+    """Record a guardrail verdict a person disagreed with.
+
+    The rows the guardrail gets wrong are the most valuable data this product
+    produces, and every one of them was being thrown away. They are stored
+    without a user id — this is about a statement and a CV excerpt, not about
+    who applied where — and nothing reaches the eval set until it is reviewed
+    by hand (evals/promote_feedback.py). A training set fed by unreviewed
+    clicks learns whatever annoys people.
+    """
+    _require(req.statement, "statement")
+    # Redact again rather than trust the client: this text is about to be
+    # written to a database, and the caller may not be our own frontend.
+    excerpt, _ = redact(req.cv_excerpt or "")
+    statement, _ = redact(req.statement)
+
+    row = GuardrailFeedback(
+        statement=statement[:2000],
+        cv_excerpt=excerpt[:4000],
+        model_supported=1 if req.model_supported else 0,
+        human_supported=1 if req.human_supported else 0,
+        issue=(req.issue or "")[:1000],
+    )
+    db.add(row)
+    db.commit()
+    log_event("feedback.grounding", model_supported=req.model_supported,
+              human_supported=req.human_supported)
     return {"ok": True}
 
 

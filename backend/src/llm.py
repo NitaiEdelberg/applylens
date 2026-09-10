@@ -53,6 +53,12 @@ _working_model = None
 # Set once a schema request comes back rejected, so we stop asking.
 _schema_supported = True
 
+# Usage reported by the last successful call. Batch jobs pace themselves against
+# a per-minute token ceiling, and estimating tokens from character counts
+# under-counts badly on models that bill their own reasoning, so they read the
+# real number from here instead of guessing.
+LAST_USAGE = {}
+
 _breaker = CircuitBreaker(
     failure_threshold=int(os.getenv("LLM_BREAKER_FAILURES", "4")),
     cooldown_seconds=float(os.getenv("LLM_BREAKER_COOLDOWN", "30")),
@@ -179,6 +185,7 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
                                     retried=attempt > 1)
                     _working_model = model
                     _breaker.record_success()
+                    globals()["LAST_USAGE"] = data.get("usage") or {}
                     content = data["choices"][0]["message"]["content"]
                     if tape_key and cassette.MODE == "record":
                         cassette.record(tape_key, content, model, data.get("usage"))
