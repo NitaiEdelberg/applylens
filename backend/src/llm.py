@@ -102,12 +102,31 @@ def _model_is_gone(status: int, body: str) -> bool:
             or "decommissioned" in body)
 
 
-def _schema_rejected(status: int, body: str) -> bool:
-    """True when the model took the request but not the response_format."""
+def _schema_rejected(status: int, body: str):
+    """Why a schema-constrained request failed, or None if that is not it.
+
+    Two different failures wear the same 400, and they deserve different
+    answers:
+
+      "unsupported"  this model cannot do constrained decoding at all. Stop
+                     asking, for the life of the process.
+      "flaky"        Groq implements schemas through its tool-calling path, and
+                     the model sometimes emits a tool call instead of the JSON
+                     ("Tool choice is none, but model called a tool"). That is
+                     a bad roll, not a capability: retry THIS request without
+                     the schema and keep using schemas elsewhere.
+
+    Taking the site down for a bad roll is what the narrower version of this
+    check did, at eight in the morning.
+    """
     if status != 400:
-        return False
+        return None
     body = body.lower()
-    return "response_format" in body or "json_schema" in body or "schema" in body
+    if "tool_use_failed" in body or "called a tool" in body or "failed_generation" in body:
+        return "flaky"
+    if "response_format" in body or "json_schema" in body or "schema" in body:
+        return "unsupported"
+    return None
 
 
 def _is_transient(status: int) -> bool:
@@ -166,6 +185,9 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
     global _working_model, _schema_supported
 
     base = {"temperature": temperature, "messages": messages}
+    # Local to this call: a flaky generation drops the schema here without
+    # disabling it for every other request in the process.
+    use_schema = schema
     fmt_for_key = _response_format(json_mode, schema)
     tape_key = cassette.key_for(messages, temperature, fmt_for_key) if cassette.enabled() else None
 
@@ -186,7 +208,7 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
         for model in _candidates():
             for attempt in range(1, MAX_ATTEMPTS + 1):
                 body = dict(base, model=model)
-                fmt = _response_format(json_mode, schema)
+                fmt = _response_format(json_mode, use_schema)
                 if fmt:
                     body["response_format"] = fmt
 
@@ -227,11 +249,15 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
                 last_status = resp.status_code
                 last_error = "Groq API {}: {}".format(resp.status_code, text)
 
-                # An unsupported schema is our fault, not the upstream's: drop
-                # the schema and try the same model again without counting it
-                # against the breaker.
-                if schema and _schema_supported and _schema_rejected(resp.status_code, text):
-                    _schema_supported = False
+                # A schema problem is ours, not the upstream's: drop the schema
+                # and try the same model again. It costs one attempt and does
+                # not count against the breaker, which is right — the upstream
+                # is fine, our request was not.
+                schema_problem = _schema_rejected(resp.status_code, text) if use_schema else None
+                if schema_problem:
+                    if schema_problem == "unsupported":
+                        _schema_supported = False
+                    use_schema = None
                     continue
 
                 # A day's budget does not come back in seconds. Skip the

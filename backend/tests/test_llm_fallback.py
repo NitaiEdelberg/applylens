@@ -343,3 +343,49 @@ def test_the_remembered_model_does_not_replace_the_chain(monkeypatch):
     assert asyncio.run(llm.chat([{"role": "user", "content": "again"}])) == '{"ok": true}'
     assert tried == ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
     assert llm._working_model == "openai/gpt-oss-20b", "and it remembers the new one"
+
+
+def test_a_tool_call_wrapper_retries_without_the_schema(monkeypatch):
+    """The 8am outage.
+
+    Groq implements schema-constrained output through its tool-calling path,
+    and the model sometimes answers with a tool call instead of the JSON. Groq
+    then rejects its own generation with a 400 the old detector did not
+    recognise, so a bad roll of the dice became a 502 for the user.
+    """
+    formats = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        formats.append((body.get("response_format") or {}).get("type"))
+        if formats[-1] == "json_schema":
+            return httpx.Response(400, json={"error": {
+                "message": "Tool choice is none, but model called a tool",
+                "code": "tool_use_failed",
+                "failed_generation": '{"name": "Laudable", "arguments": {}}'}})
+        return _ok()
+
+    monkeypatch.setattr(llm, "GROQ_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setattr(llm.httpx, "AsyncClient", _fake_groq(handler))
+
+    schema = {"type": "object", "properties": {"checks": {"type": "array"}}}
+    assert asyncio.run(llm.chat([{"role": "user", "content": "hi"}], schema=schema))
+    assert formats == ["json_schema", "json_object"]
+    # A bad roll is not a capability: schemas stay on for every other request.
+    assert llm._schema_supported is True
+
+
+def test_a_genuinely_unsupported_schema_switches_them_off(monkeypatch):
+    def handler(request):
+        body = json.loads(request.content)
+        if (body.get("response_format") or {}).get("type") == "json_schema":
+            return httpx.Response(400, json={"error": {
+                "message": "response_format json_schema is not supported for this model"}})
+        return _ok()
+
+    monkeypatch.setattr(llm, "GROQ_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setattr(llm.httpx, "AsyncClient", _fake_groq(handler))
+
+    asyncio.run(llm.chat([{"role": "user", "content": "hi"}],
+                         schema={"type": "object", "properties": {}}))
+    assert llm._schema_supported is False, "this one really is a capability"
