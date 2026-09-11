@@ -1,0 +1,68 @@
+# Keeps the backend awake during a window, so a demo does not open on a
+# seventy-second cold start.
+#
+# WHY ONE JOB THAT LOOPS, INSTEAD OF A CRON EVERY 14 MINUTES: GitHub drops most
+# short-interval scheduled runs on a quiet repository. A `*/14` schedule was
+# measured firing roughly every two hours, which keeps nothing awake — Render
+# sleeps after fifteen minutes idle. One run that fires once and then pings
+# itself for four hours is reliable, and it costs nothing extra: Actions
+# minutes are free on public repositories.
+#
+# THE BUDGET THIS SPENDS: Render's 750 free instance-hours are ACCOUNT-WIDE,
+# not per service. The other three services are budgeted at 18 hours a day
+# between them (540/month). This adds 4 hours a day on weekdays only:
+#
+#   4h x 5 days x ~4.3 weeks = ~87 hours/month
+#   540 + 87 = 627, leaving ~120 hours for actual visitors
+#
+# Widening the window or adding weekends eats that margin, and running out
+# suspends EVERY free service on the account until the 1st. Change the number
+# deliberately: set the repository variable KEEP_AWAKE_HOURS.
+name: keep-awake
+
+on:
+  schedule:
+    # 06:00 UTC = 09:00 in Israel, so the window covers the morning and midday.
+    - cron: "0 6 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Wake it for this many minutes (before a demo or an interview)"
+        required: false
+        default: "45"
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    # Room for the longest window plus the first wake, which can take a minute.
+    timeout-minutes: 320
+    steps:
+      - name: Keep the instance warm
+        env:
+          BASE: ${{ vars.BACKEND_URL || 'https://applylens-backend.onrender.com' }}
+          HOURS: ${{ vars.KEEP_AWAKE_HOURS || '4' }}
+          MANUAL_MINUTES: ${{ github.event.inputs.minutes }}
+        run: |
+          set -u
+          if [ -n "${MANUAL_MINUTES:-}" ]; then
+            TOTAL_MINUTES="$MANUAL_MINUTES"
+          else
+            TOTAL_MINUTES=$(( HOURS * 60 ))
+          fi
+          # Render sleeps after 15 minutes idle; 13 leaves room for a slow ping.
+          INTERVAL=$(( 13 * 60 ))
+          END=$(( $(date +%s) + TOTAL_MINUTES * 60 ))
+          echo "Keeping $BASE awake for $TOTAL_MINUTES minutes"
+
+          while [ "$(date +%s)" -lt "$END" ]; do
+            START=$(date +%s)
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 "$BASE/health" || echo "000")
+            TOOK=$(( $(date +%s) - START ))
+            echo "$(date -u +%H:%M:%S) health=$CODE in ${TOOK}s"
+            # A failed ping is not a reason to stop: the instance may be
+            # restarting after a deploy, and the next ping will find it.
+            REMAINING=$(( END - $(date +%s) ))
+            [ "$REMAINING" -le 0 ] && break
+            sleep $(( INTERVAL < REMAINING ? INTERVAL : REMAINING ))
+          done
+          echo "Window finished; the instance may sleep now."
