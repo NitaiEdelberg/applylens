@@ -13,6 +13,7 @@ offline scores 0.7 in production.
 """
 from typing import Dict, List
 
+from .semantic import similarity
 from .skillmatch import (
     _ANALYZE, _FILLER, _cv_index, _match_term, _mentions, _parts, skill_match,
 )
@@ -33,7 +34,15 @@ FEATURE_NAMES = [
     "cv_tokens",
     "rule_says_covered",   # what the shipped rule decided, so the model can
                            # learn when to overrule it rather than relearn it
+    # The two the alias table cannot produce: how close the requirement gets to
+    # anything the CV says, in meaning rather than in spelling.
+    "embed_best_sentence",
+    "embed_whole_cv",
 ]
+
+# The features above minus the two embedding ones, for the ablation that shows
+# whether meaning actually buys anything over spelling.
+LEXICAL_ONLY = [n for n in FEATURE_NAMES if not n.startswith("embed_")]
 
 
 def _score_alternative(text: str, cv_text: str, evidence) -> Dict[str, float]:
@@ -52,6 +61,7 @@ def _score_alternative(text: str, cv_text: str, evidence) -> Dict[str, float]:
 
 def features(requirement: str, cv_text: str) -> List[float]:
     """One row of features for a (requirement, CV) pair, in FEATURE_NAMES order."""
+    sim = similarity(requirement, cv_text)
     evidence = _cv_index(cv_text or "")
     groups = _parts(requirement or "")
 
@@ -84,4 +94,6 @@ def features(requirement: str, cv_text: str) -> List[float]:
         float(len(requirement or "")),
         float(len(_ANALYZE(cv_text or ""))),
         1.0 if skill_match([requirement], cv_text)["covered"] else 0.0,
+        sim["best_sentence"],
+        sim["whole_cv"],
     ]

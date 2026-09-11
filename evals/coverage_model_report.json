@@ -6,11 +6,11 @@
     "lr__C": 0.1,
     "lr__class_weight": null
   },
-  "mean_average_precision": 0.6658152677219159,
-  "threshold": 0.868326951951491,
+  "mean_average_precision": 0.6862629239412326,
+  "threshold": 0.8950887794764321,
   "operating_point": {
-    "precision": 0.9615384615384616,
-    "recall": 0.1282051282051282,
+    "precision": 0.9523809523809523,
+    "recall": 0.10256410256410256,
     "rule": "highest recall at precision >= 0.95"
   },
   "out_of_fold": {
@@ -25,31 +25,61 @@
       "tn": 509
     },
     "model": {
-      "precision": 0.9615384615384616,
-      "recall": 0.1282051282051282,
-      "f1": 0.22624434389140266,
-      "accuracy": 0.7729083665338645,
-      "tp": 25,
+      "precision": 0.9523809523809523,
+      "recall": 0.10256410256410256,
+      "f1": 0.18518518518518515,
+      "accuracy": 0.7662682602921647,
+      "tp": 20,
       "fp": 1,
-      "fn": 170,
+      "fn": 175,
       "tn": 557
-    }
+    },
+    "model_at_best_f1": {
+      "precision": 0.6842105263157895,
+      "recall": 0.6,
+      "f1": 0.639344262295082,
+      "accuracy": 0.8247011952191236,
+      "tp": 117,
+      "fp": 54,
+      "fn": 78,
+      "tn": 504
+    },
+    "best_f1_threshold": 0.4311969537004747
   },
   "coefficients": {
-    "term_coverage": 0.9349684928184504,
-    "n_terms": -0.38300967593287905,
-    "exact_share": 0.11513832109141879,
-    "morphology_share": -0.0245063775300727,
-    "category_share": 0.26385654108733586,
-    "prefix_share": 0.039885747321638736,
-    "fuzzy_share": -0.07110003643172101,
-    "worst_conjunct": 0.05361944612946417,
-    "n_conjuncts": 0.17034460681413138,
-    "has_alternatives": -0.5174344899754466,
-    "requirement_chars": -0.017599937607515846,
-    "cv_tokens": 0.09938779402011755,
-    "rule_says_covered": -0.03121858080003678
+    "term_coverage": 0.870048175467065,
+    "n_terms": -0.4966988411957112,
+    "exact_share": -0.0013674746387087845,
+    "morphology_share": -0.051567004521632716,
+    "category_share": 0.24121810743017943,
+    "prefix_share": 0.03681677874788185,
+    "fuzzy_share": -0.08435986493764445,
+    "worst_conjunct": 0.0819934024200936,
+    "n_conjuncts": 0.29086470288303584,
+    "has_alternatives": -0.47957163727753277,
+    "requirement_chars": -0.1503361770488177,
+    "cv_tokens": -0.02445992005759868,
+    "rule_says_covered": -0.061045482493602296,
+    "embed_best_sentence": 0.38519311194935363,
+    "embed_whole_cv": 0.11581764395019123
   },
+  "features": [
+    "term_coverage",
+    "n_terms",
+    "exact_share",
+    "morphology_share",
+    "category_share",
+    "prefix_share",
+    "fuzzy_share",
+    "worst_conjunct",
+    "n_conjuncts",
+    "has_alternatives",
+    "requirement_chars",
+    "cv_tokens",
+    "rule_says_covered",
+    "embed_best_sentence",
+    "embed_whole_cv"
+  ],
   "label_sources": {
     "linkedin": 753
   },

@@ -36,7 +36,8 @@ from sklearn.preprocessing import StandardScaler
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "backend"))
 
-from src.services.coverage_features import FEATURE_NAMES, features  # noqa: E402
+from src.services.coverage_features import FEATURE_NAMES, LEXICAL_ONLY, features  # noqa: E402
+from src.services.semantic import get_embedder  # noqa: E402
 from src.services.skillmatch import skill_match  # noqa: E402
 
 TRAIN = HERE / "coverage_train.jsonl"
@@ -85,7 +86,7 @@ def pick_threshold(y_true, scores, target=TARGET_PRECISION):
     precision, recall, thresholds = precision_recall_curve(y_true, scores)
     best = None
     for p, r, t in zip(precision[:-1], recall[:-1], thresholds):
-        if p >= target and (best is None or r > best[1]):
+        if target > 0 and p >= target and (best is None or r > best[1]):
             best = (p, r, t)
     if best:
         return float(best[2]), {"precision": float(best[0]), "recall": float(best[1]),
@@ -104,6 +105,8 @@ def main():
     parser.add_argument("--test", type=Path, default=HERE / "coverage_test_labeled.jsonl",
                         help="hand-labelled held-out rows (produced by the label desk)")
     parser.add_argument("--folds", type=int, default=5)
+    parser.add_argument("--no-embeddings", action="store_true",
+                        help="ablation: train on the lexical features only")
     args = parser.parse_args()
 
     if not TRAIN.exists():
@@ -113,6 +116,14 @@ def main():
     cvs = json.loads(CVS.read_text(encoding="utf-8"))
     rows = read_jsonl(TRAIN)
     X, y, groups, _ = build_matrix(rows, cvs)
+
+    names = FEATURE_NAMES
+    if args.no_embeddings:
+        keep = [FEATURE_NAMES.index(n) for n in LEXICAL_ONLY]
+        X, names = X[:, keep], LEXICAL_ONLY
+        print("ablation: lexical features only, no embedder")
+    else:
+        print("embedder: {}".format(get_embedder().name))
     n_groups = len(set(groups))
     print("{} rows over {} CVs | {} covered / {} missing".format(
         len(y), n_groups, int(y.sum()), int((1 - y).sum())))
@@ -155,17 +166,27 @@ def main():
 
     threshold, operating = pick_threshold(y, oof)
     cv_metrics = metrics(y, (oof >= threshold).astype(int))
-    rule_metrics = metrics(y, X[:, FEATURE_NAMES.index("rule_says_covered")].astype(int))
+    # The chosen operating point is precision-first by design, which on a steep
+    # curve costs almost all the recall. Reporting the best-F1 point alongside
+    # it separates "this model is weak" from "this threshold is severe" — two
+    # different problems with two different fixes.
+    best_f1_threshold, best_f1_point = pick_threshold(y, oof, target=0.0)
+    f1_metrics = metrics(y, (oof >= best_f1_threshold).astype(int))
+    rule_metrics = metrics(y, X[:, names.index("rule_says_covered")].astype(int))
 
     print("\nout-of-fold, at threshold {:.3f} ({})".format(threshold, operating["rule"]))
     print("{:10} {:>10} {:>8} {:>7} {:>7}".format("system", "precision", "recall", "f1", "acc"))
     for name, m in (("rule", rule_metrics), ("model", cv_metrics)):
         print("{:10} {precision:>10.3f} {recall:>8.3f} {f1:>7.3f} {accuracy:>7.3f}".format(name, **m))
+    print("\nsame model, threshold {:.3f} (best F1 instead of precision-first)".format(
+        best_f1_threshold))
+    print("{:10} {precision:>10.3f} {recall:>8.3f} {f1:>7.3f} {accuracy:>7.3f}".format(
+        "model", **f1_metrics))
 
     model = grid.best_estimator_
     weights = model.named_steps["lr"].coef_[0]
     print("\nwhat the model learned (standardised coefficients):")
-    for name, weight in sorted(zip(FEATURE_NAMES, weights), key=lambda kv: -abs(kv[1])):
+    for name, weight in sorted(zip(names, weights), key=lambda kv: -abs(kv[1])):
         print("  {:20} {:+.2f}".format(name, weight))
 
     report = {
@@ -173,8 +194,11 @@ def main():
         "best_params": grid.best_params_,
         "mean_average_precision": float(grid.best_score_),
         "threshold": threshold, "operating_point": operating,
-        "out_of_fold": {"rule": rule_metrics, "model": cv_metrics},
-        "coefficients": dict(zip(FEATURE_NAMES, [float(w) for w in weights])),
+        "out_of_fold": {"rule": rule_metrics, "model": cv_metrics,
+                        "model_at_best_f1": f1_metrics,
+                        "best_f1_threshold": best_f1_threshold},
+        "coefficients": dict(zip(names, [float(w) for w in weights])),
+        "features": names,
         "label_sources": Counter(r.get("jd_source", "?") for r in rows),
     }
 
@@ -209,12 +233,15 @@ def main():
     MODEL_DIR.mkdir(exist_ok=True)
     try:
         import joblib
-        joblib.dump({"model": model, "threshold": threshold, "features": FEATURE_NAMES},
+        joblib.dump({"model": model, "threshold": threshold, "features": names,
+                     "embedder": None if args.no_embeddings else get_embedder().name},
                     MODEL_DIR / "coverage_lr.joblib")
         print("\nsaved backend/models/coverage_lr.joblib")
     except ImportError:
         print("\njoblib not installed; the model was not saved")
 
+    globals()["REPORT"] = (HERE / "coverage_model_report_lexical.json"
+                           if args.no_embeddings else REPORT)
     REPORT.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     print("wrote {}".format(REPORT.name))
     return 0
