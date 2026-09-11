@@ -1,0 +1,30 @@
+# The tests in CI prove this code does what it says. They cannot prove the live
+# site works, because every outage so far has lived in the space between this
+# code and somebody else's API: a model retired, a daily token cap, a
+# tool-call wrapper from constrained decoding. None of them were visible to a
+# unit test, and all three were found by a person trying the site.
+#
+# So this asks production to do one real analysis, twice a day, and fails
+# loudly when the answer is not an answer. GitHub emails the repo owner on a
+# failed scheduled run, which is the whole point: find out before a visitor does.
+#
+# Cost: about 3k tokens per run against a 200k/day free budget. Twice a day is
+# affordable; every five minutes would not be.
+name: smoke
+
+on:
+  schedule:
+    - cron: "17 6 * * *"   # 06:17 UTC, before the working day here
+    - cron: "17 16 * * *"  # 16:17 UTC
+  workflow_dispatch: {}
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: One real analysis against production
+        run: python evals/smoke_prod.py
