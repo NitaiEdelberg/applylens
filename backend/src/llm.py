@@ -76,11 +76,17 @@ _breaker = CircuitBreaker(
 
 
 def _candidates():
-    """Models to try, in order, without repeats."""
-    if _working_model:
-        return [_working_model]
+    """Models to try, in order, without repeats.
+
+    The model that answered last time goes first — it saves a round trip
+    against a retired id — but the rest of the chain still follows it. An
+    earlier version returned ONLY the remembered model, which quietly disabled
+    the fallback at the exact moment it was needed: a model that worked all day
+    can hit its daily token cap mid-request, and then there was nothing behind
+    it. That took the live site down while the chain it needed sat unused.
+    """
     seen, out = set(), []
-    for name in [GROQ_MODEL, *FALLBACK_MODELS]:
+    for name in [_working_model, GROQ_MODEL, *FALLBACK_MODELS]:
         if name and name not in seen:
             seen.add(name)
             out.append(name)
@@ -231,6 +237,8 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
                 # A day's budget does not come back in seconds. Skip the
                 # retries and spend the request on a model that still has one.
                 if _daily_cap(resp.status_code, text):
+                    if _working_model == model:
+                        _working_model = None  # its day is done; stop preferring it
                     break
 
                 if _is_transient(resp.status_code):
@@ -248,6 +256,8 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
                     break
 
                 if _model_is_gone(resp.status_code, text):
+                    if _working_model == model:
+                        _working_model = None  # retired mid-process
                     break  # next model in the chain
 
                 _breaker.record_failure()

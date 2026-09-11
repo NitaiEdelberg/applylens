@@ -309,3 +309,37 @@ def test_a_short_wait_is_still_honoured(monkeypatch):
 
     asyncio.run(llm.chat([{"role": "user", "content": "hi"}]))
     assert slept and slept[0] <= 6.6, "short waits are worth taking"
+
+
+def test_the_remembered_model_does_not_replace_the_chain(monkeypatch):
+    """The bug that took the live site down.
+
+    Remembering the model that answered is an optimisation. Returning ONLY that
+    model is a different thing: it deletes the fallback. A model that worked all
+    day can hit its daily cap on the next call, and then the chain behind it has
+    to still be there.
+    """
+    tried = []
+    capped = {"yet": False}
+
+    def handler(request):
+        model = json.loads(request.content)["model"]
+        tried.append(model)
+        if model == "openai/gpt-oss-120b" and capped["yet"]:
+            return httpx.Response(429, json={"error": {"message":
+                "Rate limit reached on tokens per day (TPD): Limit 200000"}})
+        if model == "openai/gpt-oss-120b":
+            return _ok()
+        return _ok()
+
+    monkeypatch.setattr(llm, "GROQ_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setattr(llm.httpx, "AsyncClient", _fake_groq(handler))
+
+    asyncio.run(llm.chat([{"role": "user", "content": "hi"}]))   # remembers 120b
+    assert llm._working_model == "openai/gpt-oss-120b"
+
+    capped["yet"] = True                                          # its day ends
+    tried.clear()
+    assert asyncio.run(llm.chat([{"role": "user", "content": "again"}])) == '{"ok": true}'
+    assert tried == ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+    assert llm._working_model == "openai/gpt-oss-20b", "and it remembers the new one"
