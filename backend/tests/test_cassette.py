@@ -22,6 +22,12 @@ def _reload(monkeypatch, tmp_path, mode):
     import src.llm as llm
     importlib.reload(cassette)
     importlib.reload(llm)
+    # The key has to be set ON the module, not only in the environment: llm
+    # binds it from config at import, and config was imported once at
+    # collection time — so on a machine with no .env (which is every CI
+    # machine) setenv here changes nothing. That difference kept this suite
+    # green locally and red on CI for seventeen runs.
+    llm.GROQ_API_KEY = "test-key"
     return llm, cassette, tape
 
 
@@ -86,6 +92,7 @@ def test_replay_without_a_key_still_works(monkeypatch, tmp_path):
     llm, _, _ = _reload(monkeypatch, tmp_path, "replay")
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     importlib.reload(llm)
+    llm.GROQ_API_KEY = ""  # genuinely keyless, whatever the machine has
     assert asyncio.run(llm.chat(MESSAGES)) == "hi", "the point is CI with no key"
 
 
