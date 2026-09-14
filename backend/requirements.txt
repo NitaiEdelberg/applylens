@@ -10,6 +10,12 @@ python-docx
 # prebuilt wheels for Python 3.8-3.12, so it installs on the local venv and the
 # 3.11 Render box alike — no torch/transformers, ~150MB RSS, fits free tier.
 scikit-learn==1.3.2
+# ...which is compiled against the numpy 1.x ABI. On Python 3.12 pip happily
+# resolves numpy 2.x, the install succeeds, and then every import of sklearn
+# dies on a changed dtype size. That is why CI failed 17 times in a row while
+# the local venv (numpy 1.24) stayed green, and why the pin has to be explicit
+# rather than inherited from whatever sklearn asks for.
+numpy<2
 # Optional accounts + cloud tracker (Circle 3). SQLAlchemy ORM runs on SQLite
 # locally (no credential) and Postgres in prod via psycopg2. passlib[bcrypt]
 # hashes passwords; pyjwt issues/verifies the auth tokens.
