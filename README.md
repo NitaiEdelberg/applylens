@@ -15,7 +15,7 @@ An AI copilot for the job hunt. Paste a job description and your CV, and ApplyLe
 It's a **workspace, not a chat box** — three things a raw ChatGPT/Claude paste structurally can't give you:
 - **Trust you can see** — every tailored bullet is labeled *"verified against your CV"* (with the evidence) or *"not supported"* (with the reason). Chat will happily invent "Led a team of 8 at Google"; ApplyLens flags it.
 - **A workflow across many jobs** — analyses are saved to a tracker and moved applied → interviewing → offer. Chat loses everything on refresh.
-- **Measured accuracy** — every claim above has a number behind it, and the numbers are produced by scripts in `evals/` that anyone can run: 95 labelled rows for the guardrail (tagged by the *kind* of fabrication, so the report says which kind slips through), 65 for the deterministic coverage signal, 8 for retrieval. Chat gives you vibes; this gives you a table.
+- **Measured accuracy** — every claim above has a number behind it, and the numbers are produced by scripts in `evals/` that anyone can run: 95 labelled rows for the guardrail — accuracy 0.98, recall 1.00, two true statements wrongly flagged — tagged by the *kind* of fabrication, so the report says which kind slips through, 65 for the deterministic coverage signal, 8 for retrieval. Chat gives you vibes; this gives you a table.
 
 Built as a real tool *and* a showcase of applied-AI engineering: structured LLM extraction, LLM-as-judge scoring, grounded generation, a user-facing anti-hallucination **guardrail**, an **eval harness** with precision/recall, and a polished dark SaaS UI with cold-start-aware UX.
 

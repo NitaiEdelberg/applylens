@@ -217,8 +217,8 @@
       "false_flags": 0
     }
   },
-  "prompt_version": "v1",
-  "source": "tape",
+  "prompt_version": "v3",
+  "source": "live",
   "rows": [
     {
       "statement": "Built a real-time web app using Socket.io and PostgreSQL",

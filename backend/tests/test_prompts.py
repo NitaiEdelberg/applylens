@@ -42,3 +42,15 @@ def test_a_missing_version_says_which_ones_exist():
 def test_a_missing_field_fails_loudly_rather_than_shipping_a_hole():
     with pytest.raises(KeyError):
         prompts.render("tailor", "v1", guard="g", job="j")  # no cv
+
+
+def test_the_grounding_default_is_the_version_that_measured_best():
+    # Not v1: v3 scores 0.98 accuracy with zero missed fabrications on the
+    # labelled set, against v1's 0.93 with one missed. If this default moves
+    # back, the eval should have moved first.
+    assert prompts.active_version("grounding") == "v3"
+
+
+def test_an_environment_variable_still_overrides_a_measured_default(monkeypatch):
+    monkeypatch.setenv("PROMPT_GROUNDING_VERSION", "v1")
+    assert prompts.active_version("grounding") == "v1"

@@ -106,7 +106,7 @@ command line:
 | Question | Command | Current |
 |---|---|---|
 | Does the coverage signal agree with a person? | `python evals/run_skillmatch_eval.py` | P 0.98 / R 1.00 on 65 labelled cases (the rule it replaced: 0.92 / 0.56) |
-| Does the guardrail catch fabrications? | `python evals/run_evals.py --replay` | 95 labelled rows, reported per kind of fabrication |
+| Does the guardrail catch fabrications? | `python evals/run_evals.py --replay` | 95 labelled rows: accuracy 0.98, precision 0.96, recall 1.00 — 0 missed, 2 true statements wrongly flagged |
 | Does retrieval find the right paragraphs? | `python evals/run_retrieval_eval.py` | recall@4 0.94, MRR 1.00, TF-IDF path |
 | Is the new prompt better than the old one? | `python evals/run_prompt_ab.py` | grounded-bullet rate per version |
 
