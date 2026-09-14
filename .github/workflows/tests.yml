@@ -22,8 +22,24 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: pip install -r backend/requirements.txt pytest
+      # The failure is copied into the job summary because that is readable
+      # through the public API, while the logs are not. A red CI you cannot
+      # read is a red CI you learn to ignore.
       - name: Unit tests
-        run: cd backend && python -m pytest -q
+        run: |
+          cd backend
+          set +e
+          python -m pytest -q --tb=short 2>&1 | tee /tmp/pytest.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            {
+              echo '### pytest failed'
+              echo '```'
+              tail -60 /tmp/pytest.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$code"
       - name: Coverage-signal eval (fails on a precision/recall regression)
         run: python evals/run_skillmatch_eval.py --verbose
 
