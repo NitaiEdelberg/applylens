@@ -137,7 +137,24 @@ honest answer: it is a model judging a model. So its verdicts get scored against
 human labels, and every verdict a user disputes is recorded and reviewed into
 the eval set.
 
-**"What would you do next with more time?"** Calibrate the judge against a
-bigger human-labelled set, and ship the trained coverage model only if it beats
-the rules it would replace — right now the rules are at F1 0.99 and they may
-well win.
+**"What would you do next with more time?"** Replace the term-matching features
+with proper sentence embeddings. The rules score F1 0.99 on cases I wrote and
+0.53 on requirements from real postings, and a threshold sweep says that is a
+feature ceiling, not a tuning problem.
+
+**"Tell me about a hard bug."** The site hung, and the per-stage trace said why
+in one line: `tailor → gpt-oss-120b → 429`, then nothing. Remembering which
+model answered last time returned *only* that model, so when it hit its daily
+token cap the fallback chain behind it was never tried. The optimisation deleted
+the safety net at the exact moment it existed for.
+
+**"Tell me about something that did not work."** I trained a classifier to
+replace the rules and it lost — 0.00 against the rules' 0.25 on hand-labelled
+CVs it had never seen. The criterion was set before the data existed, so the
+negative result is a result. The labels were worth more than the model: they
+showed the LLM annotator systematically crediting "team player" and "excellent
+communication" as covered, which no CV can evidence, and that bias was in the
+training labels too.
+
+The long versions of these, with the numbers, are in
+[INCIDENTS.md](INCIDENTS.md).

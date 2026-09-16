@@ -39,8 +39,10 @@ day: a fallback chain when a model is retired, retries that wait exactly as long
 as the upstream asks, a circuit breaker, an in-process cache for repeat
 analyses, and a per-request budget that drops the cheapest check rather than
 timing out. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the request
-path and [docs/DECISIONS.md](docs/DECISIONS.md) for why it is not built some
-other way.
+path, [docs/DECISIONS.md](docs/DECISIONS.md) for why it is not built some other
+way, and [docs/INCIDENTS.md](docs/INCIDENTS.md) for the seven things that broke
+and what each one changed — including the benchmark that flattered itself and
+the trained model that lost to a hundred lines of rules.
 
 **Your CV's contact details never leave the server.** Email, phone, ID number,
 street address and social links are replaced with placeholders before inference
