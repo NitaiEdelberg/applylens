@@ -115,6 +115,14 @@ class SkillMatch(BaseModel):
     # in missing_detail so the wire shape stays what older clients expect.
     missing: List[str] = []
     missing_detail: List[MissingReq] = []
+    # Requirements the signal declines to judge — traits a CV cannot evidence
+    # ("team player"), and tenure it cannot count ("5+ years"). Kept out of the
+    # score rather than guessed at.
+    not_assessed: List[str] = []
+    # Requirements where this signal and the LLM fit score disagree. On
+    # hand-labelled data the agreements were right 19/19 and the disagreements
+    # 3/16, so these are shown as unresolved rather than asserted either way.
+    disputed: List[str] = []
     method: str = "term coverage"
 
 

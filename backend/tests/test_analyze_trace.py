@@ -150,3 +150,25 @@ def test_an_ordinary_posting_is_not_flagged(stub_the_model):
     screening = client.post("/api/analyze", json=BODY).json()["screening"]
     assert screening["suspicious"] is False
     assert screening["remote"] == "unavailable", "no network in tests"
+
+
+def test_requirements_the_two_signals_disagree_on_are_marked_disputed(monkeypatch, stub_the_model):
+    """Where the cheap signal and the model disagree, neither gets asserted.
+
+    The split that justifies this: on 48 hand-labelled requirements, the two
+    agreeing was right 19 of 19 times, and them disagreeing was right 3 of 16.
+    """
+    async def fit_says_missing(messages, temperature=0.2, schema=None):
+        return {"overall_score": 40, "matched": [], "partial": [],
+                # The CV plainly says SQL and Snowflake, so the term signal
+                # will call this covered. The model here says it is not.
+                "missing": ["SQL against a warehouse"], "summary": "thin"}
+
+    monkeypatch.setattr(fit_svc, "chat_json", fit_says_missing)
+    match = client.post("/api/analyze", json=BODY).json()["skill_match"]
+    assert match["disputed"] == ["SQL against a warehouse"]
+
+
+def test_nothing_is_disputed_when_the_signals_agree(stub_the_model):
+    match = client.post("/api/analyze", json=BODY).json()["skill_match"]
+    assert match["disputed"] == []

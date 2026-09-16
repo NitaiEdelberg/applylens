@@ -84,8 +84,46 @@ def test_still_deterministic():
     assert skill_match(reqs, CV) == skill_match(reqs, CV)
 
 
-def test_a_seniority_gate_is_a_known_limitation():
-    # Documented, not fixed: "5+ years" is not a keyword, and this signal reads
-    # keywords. It reports covered because the CV does mention backend work.
-    # The LLM fit score is the signal that judges seniority.
-    assert skill_match(["5+ years of professional backend experience"], CV)["covered"]
+def test_a_seniority_gate_is_no_longer_reported_as_covered():
+    # This used to be a documented limitation: "5+ years" is not a keyword, so
+    # the signal reported it covered because the CV mentions backend work. A
+    # hand-labelling pass on real postings showed how often that lies, so the
+    # signal now declines tenure instead of guessing at it.
+    result = skill_match(["5+ years of professional backend experience"], CV)
+    assert not result["covered"]
+    assert result["not_assessed"] == ["5+ years of professional backend experience"]
+
+
+def test_traits_a_cv_cannot_evidence_are_not_judged():
+    # A person labelling these said "not covered" on every one; the LLM
+    # annotator said "covered" on nearly all, because a CV mentioning customers
+    # superficially resembles "strong communication". Both are wrong: this
+    # signal has nothing to say about them.
+    result = skill_match([
+        "Strong communication and stakeholder management",
+        "Team player with strong interpersonal skills",
+        "High accuracy and attention to detail",
+        "Excellent written and oral communication",
+    ], CV)
+    assert result["covered"] == [] and result["missing"] == []
+    assert len(result["not_assessed"]) == 4
+
+
+def test_tenure_is_not_judged_either():
+    result = skill_match(["5+ years of professional backend experience"], CV)
+    assert result["not_assessed"] == ["5+ years of professional backend experience"]
+    assert result["covered"] == []
+
+
+def test_declining_a_requirement_does_not_dilute_the_score():
+    # Two real requirements, one covered: 50%, whatever soft skills surround it.
+    result = skill_match(
+        ["SQL", "Kubernetes", "Team player", "Excellent written and oral communication"], CV)
+    assert result["coverage_score"] == 50
+    assert len(result["not_assessed"]) == 2
+
+
+def test_a_technical_requirement_that_mentions_a_team_is_still_judged():
+    # "collaborat" appears here, but the requirement is about a named tool.
+    result = skill_match(["Python"], CV)
+    assert result["covered"] and not result["not_assessed"]

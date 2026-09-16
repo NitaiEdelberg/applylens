@@ -109,6 +109,38 @@ _IMPLIES = {
     "jest": {"testing", "tests", "test", "javascript"},
 }
 
+# Requirements a CV cannot evidence, however carefully it is read. A person
+# labelling these said "not covered" on every one; the LLM annotator said
+# "covered" on nearly all of them, because a CV that mentions customers or a
+# team superficially resembles "strong communication". Both answers are wrong:
+# the honest verdict is that this signal has nothing to say, and claiming a
+# match here is the most confident-sounding way for it to lie.
+#
+# They are reported separately rather than dropped, because a job asking for
+# five of these is telling the candidate something, and a coverage score that
+# silently ignored half a posting would be its own kind of dishonest.
+_UNASSESSABLE = re.compile(
+    r"\b(communication|communicat\w+|interpersonal|team\s*player|collaborat\w+|"
+    r"attention to detail|detail[- ]oriented|self[- ]starter|proactive|"
+    r"problem[- ]solving|analytical thinking|critical thinking|"
+    r"stakeholder management|work ethic|fast[- ]paced|adaptab\w+|"
+    r"passionate|motivated|independent\w*|ownership|can[- ]do|"
+    r"written and (?:oral|verbal)|verbal and written|"
+    r"ability to (?:translate|define|articulate|influence|prioriti[sz]e)|"
+    r"high accuracy|willingness to learn|growth mindset|curious)\b",
+    re.IGNORECASE)
+
+# The other thing a CV cannot settle: how long someone has been doing it. The
+# LLM fit score judges seniority; term coverage cannot.
+_TENURE = re.compile(r"\b\d+\s*\+?\s*(?:years?|yrs?)\b", re.IGNORECASE)
+
+
+def assessable(requirement: str) -> bool:
+    """False for requirements about traits or tenure rather than skills."""
+    text = requirement or ""
+    return not (_UNASSESSABLE.search(text) or _TENURE.search(text))
+
+
 # How close two tokens must look before one counts as the other (postgres /
 # postgresql). Deliberately tight: at 0.85 "react" starts matching "retail".
 _FUZZY = 0.92
@@ -256,13 +288,17 @@ def skill_match(requirements: list, cv_text: str, threshold: float = 0.5) -> dic
             "covered": [],
             "missing": list(reqs),
             "missing_detail": [{"requirement": r, "unmatched": []} for r in reqs],
+            "not_assessed": [],
             "method": _METHOD,
         }
 
     evidence = _cv_index(cv)
 
-    covered, missing = [], []
+    covered, missing, not_assessed = [], [], []
     for req in reqs:
+        if not assessable(req):
+            not_assessed.append(req)
+            continue
         # "SQL, Python and Kubernetes" is three requirements wearing one coat:
         # scoring it as a bag of terms called it covered at 2 of 3. Every
         # conjunct has to stand on its own; alternatives inside one only need
@@ -286,12 +322,16 @@ def skill_match(requirements: list, cv_text: str, threshold: float = 0.5) -> dic
             missing.append({"requirement": req, "unmatched": unmatched})
 
     covered.sort(key=lambda c: c["score"], reverse=True)
+    judged = len(covered) + len(missing)
     return {
-        "coverage_score": int(len(covered) / len(reqs) * 100),
+        "coverage_score": int(len(covered) / judged * 100) if judged else 0,
         "covered": covered,
         # `missing` stays a plain list of requirement strings because that is
         # what the UI renders; the per-term reasons ride alongside it.
         "missing": [m["requirement"] for m in missing],
         "missing_detail": missing,
+        # Requirements this signal deliberately declines to judge: traits a CV
+        # cannot evidence, and years it cannot count. Excluded from the score.
+        "not_assessed": not_assessed,
         "method": _METHOD,
     }

@@ -60,8 +60,13 @@ function CoverageRing({ score }) {
 export default function SkillCoverage({ skillMatch }) {
   if (!skillMatch) return null
 
-  const covered = skillMatch.covered || []
-  const missing = skillMatch.missing || []
+  const disputed = new Set(skillMatch.disputed || [])
+  const notAssessed = skillMatch.not_assessed || []
+  // A requirement the two signals disagree about is shown as unresolved rather
+  // than in the same colour as the ones they agree on: on hand-labelled data
+  // the agreements were right 19/19 and the disagreements 3/16.
+  const covered = (skillMatch.covered || []).filter((c) => !disputed.has(c.requirement))
+  const missing = (skillMatch.missing || []).filter((m) => !disputed.has(m))
   const total = covered.length + missing.length
 
   return (
@@ -84,8 +89,9 @@ export default function SkillCoverage({ skillMatch }) {
             Deterministic, no model involved. Checks which requirement terms your
             CV actually evidences, counting a named tool as evidence for its
             category (Snowflake covers "cloud warehouse"). Hover a chip to see
-            what matched. A second opinion next to the AI fit score, free to
-            disagree with it.
+            what matched. Amber means this signal and the AI score disagree, so
+            neither is claiming to be right; traits like "team player" are not
+            judged at all, because no CV can prove them.
           </p>
         </div>
       </div>
@@ -115,7 +121,24 @@ export default function SkillCoverage({ skillMatch }) {
                 <span className="fitchip__label">{m}</span>
               </span>
             ))}
+            {[...disputed].map((d, i) => (
+              <span
+                className="fitchip fitchip--warn"
+                key={`d-${i}`}
+                title="This signal and the AI fit score disagree here, so neither verdict is shown."
+              >
+                <span className="fitchip__dot" aria-hidden="true" />
+                <span className="fitchip__label">{d}</span>
+              </span>
+            ))}
           </div>
+
+          {notAssessed.length > 0 && (
+            <p className="skillcov__declined">
+              Not judged, because a CV cannot show them:{' '}
+              {notAssessed.join(' · ')}
+            </p>
+          )}
         </div>
       )}
     </div>

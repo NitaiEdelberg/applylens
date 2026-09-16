@@ -83,5 +83,27 @@
   "label_sources": {
     "linkedin": 753
   },
-  "held_out": null
+  "held_out": {
+    "rule": {
+      "precision": 0.2727272727272727,
+      "recall": 0.23076923076923078,
+      "f1": 0.24999999999999994,
+      "accuracy": 0.625,
+      "tp": 3,
+      "fp": 8,
+      "fn": 10,
+      "tn": 27
+    },
+    "model": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "accuracy": 0.7291666666666666,
+      "tp": 0,
+      "fp": 0,
+      "fn": 13,
+      "tn": 35
+    },
+    "verdict": "Keep the rule. The model does not beat it on unseen CVs, and a hundred lines of linguistics beating a classifier is a real result."
+  }
 }
