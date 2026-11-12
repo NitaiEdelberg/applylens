@@ -129,6 +129,23 @@ body {
   }
 }
 
+/* On phones the badges, status dot and sign-in button used to squeeze the
+   brand column to one word per line ("A" / "Tailor" / "your" ...). Give the
+   brand its own row and let the actions wrap underneath it. */
+@media (max-width: 640px) {
+  .header {
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-3);
+  }
+  .header__brand {
+    flex: 1 1 100%;
+  }
+  .header__slot {
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+}
+
 .panel {
   display: flex;
   flex-direction: column;
