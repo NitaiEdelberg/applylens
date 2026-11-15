@@ -159,11 +159,16 @@ if __name__ == "__main__":
     sys.stdout = tee
     code = main()
     sys.stdout = tee.stream
-    # Action logs need a login to read; the job summary does not (it is exposed
-    # through the public check-runs API). Three scheduled failures went
-    # undiagnosed because the reason only lived in the log. Put it here too.
+    # Action logs need a login to read, and so, it turns out, does the job
+    # summary: the public check-runs API returns it empty. Annotations are the
+    # channel that IS public (check-runs/{id}/annotations), so a failure is
+    # emitted as one. Three scheduled failures went undiagnosed before this.
+    if code and os.environ.get("GITHUB_ACTIONS"):
+        msg = "".join(tee.lines)[-900:].strip()
+        msg = msg.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print("::error title=Production smoke test failed::" + msg)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
-    if code and summary:
+    if code and summary:  # still useful for anyone logged in
         with open(summary, "a", encoding="utf-8") as f:
             f.write("### Production smoke test failed\n```\n" + "".join(tee.lines)[-3000:] + "\n```\n")
     sys.exit(code)

@@ -22,9 +22,9 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: pip install -r backend/requirements.txt pytest
-      # The failure is copied into the job summary because that is readable
-      # through the public API, while the logs are not. A red CI you cannot
-      # read is a red CI you learn to ignore.
+      # A red CI you cannot read is a red CI you learn to ignore. Logs and the
+      # job summary both need a login; annotations do not (public check-runs
+      # annotations API), so the failing tests are also emitted as one.
       - name: Unit tests
         run: |
           cd backend
@@ -32,6 +32,8 @@ jobs:
           python -m pytest -q --tb=short 2>&1 | tee /tmp/pytest.log
           code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
+            msg=$(grep -E "^(FAILED|ERROR)|Error|assert" /tmp/pytest.log | head -12 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=pytest failed::${msg}"
             {
               echo '### pytest failed'
               echo '```'
