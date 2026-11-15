@@ -174,6 +174,7 @@ export default function App() {
   // analysis (inputs aren't persisted) so "Fix this bullet" hides gracefully.
   const [analyzedJd, setAnalyzedJd] = useState('')
   const [analyzedCv, setAnalyzedCv] = useState('')
+  const [analyzedCareer, setAnalyzedCareer] = useState('')
   const [serverStatus, setServerStatus] = useState('unknown')
 
   // Resume-upload state. The parsed text fills the same `cv` field, so the rest
@@ -375,6 +376,7 @@ export default function App() {
       setResult(data)
       setAnalyzedJd(jd)
       setAnalyzedCv(cv)
+      setAnalyzedCareer(career.trim())
       setServerStatus('warm')
     } catch (e) {
       // api.js always throws a human-readable message here.
@@ -476,6 +478,7 @@ export default function App() {
     // Saved analyses don't persist the raw jd/cv — clear so Fix hides.
     setAnalyzedJd('')
     setAnalyzedCv('')
+    setAnalyzedCareer('')
     setError('')
     setView('analyze')
   }
@@ -691,7 +694,7 @@ export default function App() {
               <>
                 <InputSafety screening={result.screening} privacy={result.privacy} />
                 <RagNote rag={result.rag} />
-                <GuardrailPanel tailor={result.tailor} jdText={analyzedJd} cvText={analyzedCv} />
+                <GuardrailPanel tailor={result.tailor} jdText={analyzedJd} cvText={analyzedCv} careerText={analyzedCareer} />
                 <TrustPanel />
                 <FitGauge fit={result.fit} />
                 <SkillCoverage skillMatch={result.skill_match} />

@@ -223,3 +223,39 @@ export const sendGroundingFeedback = (body) =>
 // every caller must confirm first.
 export const cloudDeleteAccount = (token) =>
   jsonRequest('/api/account', { method: 'DELETE', token })
+
+// Repair agent: streams Server-Sent Events from POST /api/agent/repair. Each
+// event is a JSON object (start, step, wait, resolved, done, error) passed to
+// onEvent as it arrives, so the UI can show the agent working, not a spinner.
+// EventSource cannot POST, so this reads the response body stream directly.
+export async function streamRepair({ jd_text, cv_text, career_text = '', flagged }, onEvent, signal) {
+  const res = await fetch(`${BASE}/api/agent/repair`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jd_text, cv_text, career_text, flagged }),
+    signal,
+  })
+  if (!res.ok || !res.body) {
+    let detail = ''
+    try { detail = (await res.json()).detail } catch { /* not JSON */ }
+    throw new Error(typeof detail === 'string' && detail ? detail : `The repair agent could not start (HTTP ${res.status}).`)
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let cut
+    while ((cut = buffer.indexOf('\n\n')) !== -1) {
+      const chunk = buffer.slice(0, cut)
+      buffer = buffer.slice(cut + 2)
+      for (const line of chunk.split('\n')) {
+        if (line.startsWith('data: ')) {
+          try { onEvent(JSON.parse(line.slice(6))) } catch { /* skip a malformed event */ }
+        }
+      }
+    }
+  }
+}

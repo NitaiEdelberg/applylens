@@ -84,8 +84,14 @@ class Trace:
         calls = [c for s in self.stages for c in s.calls]
         prompt_tokens = sum(c.get("prompt_tokens") or 0 for c in calls)
         completion_tokens = sum(c.get("completion_tokens") or 0 for c in calls)
+        # A rejected call (429, 400, timeout) is not a model call anyone got an
+        # answer from. Counting it as one made a rate-limited agent run look
+        # like 54 calls when 35 had answered; report the two separately.
+        failed = [c for c in calls if c.get("status", 200) != 200]
         totals: Dict[str, Any] = {
-            "llm_calls": len(calls),
+            "llm_calls": len(calls) - len(failed),
+            "failed_calls": len(failed),
+            "rate_limited": sum(1 for c in failed if c.get("status") == 429),
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
         }

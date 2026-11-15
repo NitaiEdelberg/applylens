@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from sqlalchemy import or_, select, text as sql_text
 from sqlalchemy.orm import Session
 
@@ -21,6 +22,7 @@ from .services.resume import ResumeParseError, extract_text
 from .schemas import (
     ExtractRequest,
     AnalyzeRequest,
+    AgentRepairRequest,
     ExtractedJob,
     FitResult,
     TailorResult,
@@ -42,6 +44,7 @@ from .services.skillmatch import skill_match
 from .services.rag import retrieve_context, default_source
 from .services.redact import redact, restore_deep, summary as redaction_summary
 from .services.screen import screen_input, wake_detector
+from .services.agent import RepairAgent
 from .services import search as es_search
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -210,6 +213,40 @@ async def api_analyze(req: AnalyzeRequest):
     _analysis_cache.set(key, response)
     log_event("analyze.done", **trace.as_dict()["totals"])
     return response
+
+
+@app.post("/api/agent/repair")
+async def api_agent_repair(req: AgentRepairRequest):
+    """Repair agent for flagged bullets, streamed as Server-Sent Events.
+
+    Each event is one JSON object: start, then a step per tool call (tool,
+    arguments, what came back, time), a resolved event per bullet (accepted /
+    dropped / unresolved) and a final done with the totals. Streaming is the
+    point: the person sees the agent look things up and get refused, not a
+    spinner followed by a verdict.
+    """
+    _require(req.jd_text, "jd_text")
+    _require(req.cv_text, "cv_text")
+    cv_text, personal = redact(req.cv_text)
+    career_text, career_personal = redact((req.career_text or "").strip())
+    personal.update(career_personal)
+    flagged = [{"bullet": f.bullet, "issue": f.issue} for f in req.flagged]
+
+    async def events():
+        trace = start_trace("agent")
+        try:
+            async for event in RepairAgent().run(req.jd_text, cv_text, flagged, career_text=career_text):
+                if event["type"] == "done":
+                    event["summary"]["llm"] = trace.as_dict().get("totals", {})
+                # Personal details were replaced before the model saw the CV;
+                # put them back before anything reaches the browser.
+                yield "data: " + json.dumps(restore_deep(event, personal), ensure_ascii=False) + "\n\n"
+        except Exception as exc:  # noqa: BLE001 — the stream must end with a readable event
+            log_event("agent.failed", error=type(exc).__name__)
+            yield "data: " + json.dumps({"type": "error", "message": "The repair agent stopped unexpectedly."}) + "\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 def _disputed(match, fit):

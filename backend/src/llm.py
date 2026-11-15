@@ -18,6 +18,7 @@ What this file guards against, in the order the problems actually happened:
                     than failing the request.
 """
 import asyncio
+import contextvars
 import json
 import os
 import random
@@ -33,6 +34,12 @@ from .trace import record_llm_call
 
 
 class LLMError(Exception):
+    # When Groq rejects a reply because the model emitted a native tool call
+    # instead of JSON ("tool_use_failed"), it includes what the model tried to
+    # say. Callers that asked for a tool-like decision can use it; see
+    # services/agent.py. None when there was nothing to salvage.
+    failed_generation = None
+
     pass
 
 
@@ -59,6 +66,20 @@ MAX_RETRY_WAIT = float(os.getenv("LLM_MAX_RETRY_WAIT", "6"))
 
 # The first model that answered, remembered so the rest of the process skips
 # the dead ones instead of paying a failed round-trip per call.
+# How long a call may wait when the upstream says "try again in Ns". The
+# default suits a person watching one spinner: past a few seconds, another
+# model is better than waiting. A streaming agent run is different: the person
+# is watching it work, and on Groq's free tier (8k tokens/minute per model)
+# waiting the few seconds asked is what lets it finish at all. The repair agent
+# raises this for its own calls with patience(...).
+_patience: contextvars.ContextVar = contextvars.ContextVar("llm_patience", default=None)
+
+
+def patience(seconds: float):
+    """Allow waits up to `seconds` on rate limits for calls in this context."""
+    return _patience.set(seconds)
+
+
 _working_model = None
 # Set once a schema request comes back rejected, so we stop asking.
 _schema_supported = True
@@ -175,8 +196,12 @@ def _response_format(json_mode: bool, schema):
     return None
 
 
-async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
+async def chat(messages, temperature=0.2, json_mode=True, schema=None, models=None) -> str:
     """One chat completion, with model fallback, retries and a breaker.
+
+    `models` overrides the model chain for this call (the repair agent's
+    controller asks the small model first: its decisions are short, and Groq
+    meters each model's per-minute quota separately).
 
     `schema` is a JSON Schema for the reply. When the model supports
     schema-constrained decoding the reply cannot come back malformed; when it
@@ -203,9 +228,10 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
     _breaker.before_call()
     last_error = None
     last_status = None
+    salvage = None
 
     async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
-        for model in _candidates():
+        for model in (models or _candidates()):
             for attempt in range(1, MAX_ATTEMPTS + 1):
                 body = dict(base, model=model)
                 fmt = _response_format(json_mode, use_schema)
@@ -253,6 +279,11 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
                 # and try the same model again. It costs one attempt and does
                 # not count against the breaker, which is right — the upstream
                 # is fine, our request was not.
+                if resp.status_code == 400 and "failed_generation" in resp.text:
+                    try:
+                        salvage = resp.json()["error"]["failed_generation"]
+                    except Exception:  # noqa: BLE001 — salvage is best effort
+                        pass
                 schema_problem = _schema_rejected(resp.status_code, text) if use_schema else None
                 if schema_problem:
                     if schema_problem == "unsupported":
@@ -274,7 +305,7 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
                     if resp.status_code != 429:
                         _breaker.record_failure()
                     asked = _retry_after(resp.headers, text)
-                    if asked and asked > MAX_RETRY_WAIT:
+                    if asked and asked > (_patience.get() or MAX_RETRY_WAIT):
                         break  # longer than a person waits: next model, now
                     if attempt < MAX_ATTEMPTS:
                         await _backoff(attempt, asked)
@@ -287,13 +318,17 @@ async def chat(messages, temperature=0.2, json_mode=True, schema=None) -> str:
                     break  # next model in the chain
 
                 _breaker.record_failure()
-                raise LLMError(last_error)
+                err = LLMError(last_error)
+                err.failed_generation = salvage
+                raise err
 
     # Same reasoning as inside the loop: exhausting the retries against a rate
     # limit says we were too fast, not that the upstream is down.
     if last_status != 429:
         _breaker.record_failure()
-    raise LLMError(last_error or "No usable Groq model")
+    err = LLMError(last_error or "No usable Groq model")
+    err.failed_generation = salvage
+    raise err
 
 
 async def _backoff(attempt: int, asked_for=None) -> None:
@@ -303,15 +338,16 @@ async def _backoff(attempt: int, asked_for=None) -> None:
     they retry in lockstep and hit the same limit together.
     """
     if asked_for:
-        await asyncio.sleep(min(asked_for + 0.25, MAX_RETRY_WAIT) * (1 + 0.1 * random.random()))
+        cap = _patience.get() or MAX_RETRY_WAIT
+        await asyncio.sleep(min(asked_for + 0.25, cap) * (1 + 0.1 * random.random()))
         return
     delay = BACKOFF_BASE * (2 ** (attempt - 1))
     await asyncio.sleep(delay * (0.5 + random.random()))
 
 
-async def chat_json(messages, temperature=0.2, schema=None) -> dict:
+async def chat_json(messages, temperature=0.2, schema=None, models=None) -> dict:
     """Call the model in JSON mode and parse the result."""
-    content = await chat(messages, temperature=temperature, json_mode=True, schema=schema)
+    content = await chat(messages, temperature=temperature, json_mode=True, schema=schema, models=models)
     try:
         return json.loads(content)
     except json.JSONDecodeError as exc:

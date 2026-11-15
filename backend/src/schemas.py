@@ -1,6 +1,6 @@
 """Request/response models for the ApplyLens API."""
 from typing import Any, List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ---- requests ----
@@ -259,3 +259,17 @@ class TrackedApp(BaseModel):
     flagged: int = 0
     payload: Optional[Any] = None
     savedAt: Optional[str] = None
+
+
+class FlaggedBullet(BaseModel):
+    bullet: str
+    issue: Optional[str] = None
+
+
+class AgentRepairRequest(BaseModel):
+    jd_text: str
+    cv_text: str
+    career_text: Optional[str] = None
+    # The bullets the grounding guardrail flagged. Capped: each one costs several
+    # model calls, and the free tier has a daily token budget.
+    flagged: List[FlaggedBullet] = Field(min_length=1, max_length=6)

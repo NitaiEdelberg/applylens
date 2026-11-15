@@ -389,3 +389,15 @@ def test_a_genuinely_unsupported_schema_switches_them_off(monkeypatch):
     asyncio.run(llm.chat([{"role": "user", "content": "hi"}],
                          schema={"type": "object", "properties": {}}))
     assert llm._schema_supported is False, "this one really is a capability"
+
+
+def test_patience_is_scoped_to_the_context_that_asked_for_it():
+    import asyncio
+    from src import llm
+
+    async def inside():
+        llm.patience(20)
+        return llm._patience.get()
+
+    assert asyncio.run(inside()) == 20
+    assert llm._patience.get() is None, "a person-facing request must keep the short default"

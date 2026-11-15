@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { regenerateBullet, sendGroundingFeedback } from '../api.js'
+import { regenerateBullet, sendGroundingFeedback, streamRepair } from '../api.js'
+import AgentRun from './AgentRun.jsx'
 
 // Zip a bullet with its grounding verdict. A genuinely-absent grounding entry
 // falls back to verified styling (the guardrail never invents a red flag).
@@ -80,7 +81,7 @@ function CoverLetter({ text, grounding }) {
   )
 }
 
-export default function GuardrailPanel({ tailor, jdText, cvText }) {
+export default function GuardrailPanel({ tailor, jdText, cvText, careerText = '' }) {
   const bullets = tailor.bullets || []
   const grounding = tailor.grounding || []
 
@@ -118,12 +119,19 @@ export default function GuardrailPanel({ tailor, jdText, cvText }) {
   // Verdicts the reader says are wrong. These are the rows worth having: the
   // guardrail's own mistakes, reported by the one person who knows the CV.
   const [disputed, setDisputed] = useState({})
+  // Repair agent: the live event log, whether it is running, and which item
+  // each agent bullet index refers to (it only sees the flagged ones).
+  const [agentEvents, setAgentEvents] = useState([])
+  const [agentRunning, setAgentRunning] = useState(false)
+  const [agentTargets, setAgentTargets] = useState([])
 
   useEffect(() => {
     setItems(initialItems)
     setIncluded(initialItems.map((it) => it.supported))
     setFixing(initialItems.map(() => false))
     setFixError(initialItems.map(() => null))
+    setAgentEvents([])
+    setAgentTargets([])
   }, [initialItems])
 
   const verifiedCount = items.filter((it) => it.supported).length
@@ -190,6 +198,45 @@ export default function GuardrailPanel({ tailor, jdText, cvText }) {
     }
   }
 
+  // Hand every flagged bullet to the repair agent and apply its verdicts as
+  // they stream in: accepted ones become verified, dropped ones are struck out
+  // and excluded, unresolved ones stay flagged with the agent's reason.
+  async function runAgent() {
+    const targets = items.map((it, i) => (!it.supported && !it.dropped ? i : -1)).filter((i) => i >= 0).slice(0, 6)
+    if (!targets.length || agentRunning) return
+    setAgentTargets(targets)
+    setAgentEvents([])
+    setAgentRunning(true)
+    const apply = (e) => {
+      setAgentEvents((prev) => [...prev, e])
+      if (e.type !== 'resolved') return
+      const i = targets[e.bullet]
+      if (i === undefined) return
+      if (e.outcome === 'accepted') {
+        setItems((prev) => prev.map((it, idx) => (idx === i ? {
+          ...it, text: e.text, supported: true, evidence: e.evidence, issue: null, missing: false,
+          corrected: true, prevIssue: it.issue || 'Not supported by your CV', byAgent: true,
+        } : it)))
+        setIncluded((prev) => prev.map((v, idx) => (idx === i ? true : v)))
+      } else if (e.outcome === 'dropped') {
+        setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, dropped: true, dropReason: e.reason } : it)))
+        setIncluded((prev) => prev.map((v, idx) => (idx === i ? false : v)))
+      }
+    }
+    try {
+      await streamRepair({
+        jd_text: jdText, cv_text: cvText, career_text: careerText,
+        flagged: targets.map((i) => ({ bullet: items[i].text, issue: items[i].issue || '' })),
+      }, apply)
+    } catch (err) {
+      apply({ type: 'error', message: err && err.message ? err.message : 'The repair agent could not run.' })
+    } finally {
+      setAgentRunning(false)
+    }
+  }
+
+  const repairable = items.filter((it) => !it.supported && !it.dropped).length
+
   const includedBullets = items.filter((_, i) => included[i]).map((it) => it.text)
 
   async function copyVerified() {
@@ -246,7 +293,7 @@ export default function GuardrailPanel({ tailor, jdText, cvText }) {
           const isFixing = fixing[i]
           return (
             <li
-              className={`gcard${ok ? '' : ' gcard--flagged'}${it.corrected ? ' gcard--corrected' : ''}`}
+              className={`gcard${ok ? '' : ' gcard--flagged'}${it.corrected ? ' gcard--corrected' : ''}${it.dropped ? ' gcard--dropped' : ''}`}
               key={i}
             >
               <div className="gcard__top">
@@ -263,9 +310,15 @@ export default function GuardrailPanel({ tailor, jdText, cvText }) {
                 </label>
               </div>
               <p className="gcard__text">{it.text}</p>
+              {it.dropped && (
+                <div className="gcard__corrected gcard__corrected--drop">
+                  <span className="gcard__corrected-tag">Dropped by the agent</span>
+                  <span className="gcard__corrected-was">{it.dropReason}</span>
+                </div>
+              )}
               {it.corrected && ok && (
                 <div className="gcard__corrected">
-                  <span className="gcard__corrected-tag">↺ Corrected</span>
+                  <span className="gcard__corrected-tag">{it.byAgent ? '↺ Fixed by the agent' : '↺ Corrected'}</span>
                   <span className="gcard__corrected-was">was flagged: {it.prevIssue}</span>
                 </div>
               )}
@@ -274,7 +327,7 @@ export default function GuardrailPanel({ tailor, jdText, cvText }) {
                 {detail}
               </div>
               <div className="gcard__actions">
-                {!ok && canFix && (
+                {!ok && canFix && !it.dropped && (
                   <button
                     type="button"
                     className="btn btn--ghost btn--sm gcard__fix"
@@ -300,6 +353,22 @@ export default function GuardrailPanel({ tailor, jdText, cvText }) {
           )
         })}
       </ul>
+
+      {canFix && (repairable > 0 || agentEvents.length > 0) && (
+        <div className="agentcta">
+          <div className="agentcta__text">
+            <strong>Repair with an agent.</strong> It searches your CV{careerText ? ' and career history' : ''} for
+            evidence, rewrites, and has every rewrite independently verified. It can only keep a bullet
+            that passes, and drops the ones nothing supports.
+          </div>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={runAgent}
+                  disabled={agentRunning || repairable === 0}>
+            {agentRunning ? 'Agent working…' : repairable ? `Repair ${repairable} flagged` : 'Nothing left to repair'}
+          </button>
+        </div>
+      )}
+      <AgentRun events={agentEvents} running={agentRunning}
+                bullets={agentTargets.map((i) => (initialItems[i] ? initialItems[i].text : ''))} />
 
       <div className="guardrail__footer">
         <button type="button" className="btn btn--primary btn--sm" onClick={copyVerified} disabled={includedBullets.length === 0}>

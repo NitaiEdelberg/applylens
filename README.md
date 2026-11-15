@@ -30,6 +30,8 @@ React (Vite)  ──►  FastAPI  ──►  Groq (OpenAI-compatible LLM)
                         └── grounding.py  each bullet → supported? (guardrail)
    /api/analyze  ──  rag.py (opt)   career_text → top-k relevant chunks (LangChain)
                         └── tailor + grounding source = CV + retrieved chunks
+   /api/agent/repair ── agent.py    flagged bullets → tool-using repair agent (SSE stream)
+                        search_cv · search_career · rewrite · verify · accept · drop
 evals/run_evals.py     grounding guardrail → accuracy + fabrication precision/recall
 ```
 
@@ -133,6 +135,7 @@ is a scheduled GitHub Action that pings `GET /api/keepalive` every 3 days.
 | `POST /api/fit` | `{jd_text, cv_text}` | `overall_score`, matched/partial/missing, summary |
 | `POST /api/tailor` | `{jd_text, cv_text}` | `bullets`, `cover_letter`, `grounding[]`, `flagged_count`, `cover_grounding[]`, `cover_flagged_count` |
 | `POST /api/analyze` | `{jd_text, cv_text, career_text?}` | `{job, fit, tailor, skill_match, rag}`: runs extraction/fit/tailoring concurrently, then adds a deterministic (non-LLM) keyword-coverage `skill_match` signal. When optional `career_text` is present, RAG retrieves the top-k relevant career chunks and tailoring grounds against CV + chunks; `rag` = `{used, chunks[], source}` (`used:false` when omitted) |
+| `POST /api/agent/repair` | `{jd_text, cv_text, career_text?, flagged: [{bullet, issue}]}` (max 6) | **Server-Sent Events**: `start`, one `step` per tool call (tool, args, observation, ms), `wait` when rate limited, `resolved` per bullet (`accepted` / `dropped` / `unresolved`), `done` with totals. See [Repair agent](#repair-agent) |
 | `POST /api/regenerate-bullet` | `{jd_text, cv_text, bullet, issue}` | `{bullet, grounding}`: self-correcting loop: regenerate one flagged bullet conditioned on its failure reason, then independently re-verify it |
 | `POST /api/auth/register` | `{email, password}` | `{token, email}`: creates an account (bcrypt-hashed password) and returns a JWT |
 | `POST /api/auth/login` | `{email, password}` | `{token, email}`: returns a JWT |
@@ -161,6 +164,32 @@ bullet, and the **new** bullet is then re-graded by the same fact-checker
 (`check_grounding`), never trusting the generation step. It self-corrects with
 one bounded retry, then degrades honestly: if the CV genuinely can't support the
 claim, the card stays flagged instead of fabricating a green.
+
+### Repair agent
+
+The analysis pipeline is fixed on purpose: an LLM choosing the order of
+extract, score and tailor would add cost and nothing else. **Repair** is where a
+decision helps. A flagged bullet might be true but only backed by the career
+history, an overstatement that a narrower rewrite can keep, or simply invented.
+Telling those apart needs looking things up first, so it is an agent: a
+controller model picks one tool per step, sees the result, and decides again.
+
+```
+flagged bullet ─► controller ─► search_cv / search_career / rewrite / verify / accept / drop
+                      ▲                              │
+                      └──────── observation ─────────┘   (streamed to the browser)
+```
+
+The **harness** owns the rules that matter, not the prompt:
+
+- `accept` is refused unless `verify` passed on **that exact text**. The model cannot talk its way to a green bullet.
+- `verify` grounds against the CV plus only the career passages the agent **actually retrieved**, so evidence has to be found, not asserted.
+- Budgets: steps per bullet, steps per run, a wall-clock deadline and the app's daily token budget. Running out leaves the bullet **flagged**, honestly, never accepted.
+- The same call twice in a row is blocked and the model is told what to do instead; the controller sees where its candidate stands (*not verified / passed / failed and why*) every step.
+
+Things a real run taught it (each is a test now): the controller replies in JSON under a schema rather than through provider tool-calling, and when gpt-oss emits a native tool call anyway Groq rejects it with `tool_use_failed`, so the harness **salvages** the intended call from `failed_generation`. A search whose words appear nowhere in the career history returns "nothing relevant" instead of crashing TF-IDF. Rewrites are told which bullets are already used, so two flags are not "fixed" into the same fact. And on Groq's free tier (8k tokens/minute per model, about 25k per three-bullet repair) the run uses the small model for decisions and **waits out** rate limits instead of failing, so it is slower but finishes.
+
+A live run on a CV without Airflow and a career history that has it: the agent searched the CV (nothing), found the migration in the career history, rewrote, had two rewrites rejected by the verifier for adding claims ("enterprise customers", "improving reliability"), accepted the narrow true version, and **dropped** "Led a team of 5 building dbt models" and "Reduced costs by 40%" with the reason that nothing supports them. About 18k tokens.
 
 ### Optional RAG career corpus (LangChain)
 
