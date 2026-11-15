@@ -19,6 +19,7 @@ consideration: twice a day is affordable, every five minutes is not.
 """
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -85,18 +86,29 @@ def main():
         print("FAIL: the server did not answer /health: {}".format(exc))
         return 1
 
-    started = time.time()
-    try:
-        status, result = post(base + "/api/analyze",
-                              {"jd_text": JD, "cv_text": CV}, args.timeout)
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", "ignore")[:400]
-        print("FAIL: /api/analyze returned {} after {:.1f}s\n  {}".format(
-            exc.code, time.time() - started, body))
-        return 1
-    except Exception as exc:  # noqa: BLE001
-        print("FAIL: /api/analyze did not answer in {:.0f}s: {}".format(
-            args.timeout, exc))
+    # One retry, and only for errors that are plausibly transient (a 5xx while
+    # the instance finishes booting, a 429 from the model provider, a timeout).
+    # It is printed, so a flaky day is still visible; it just does not email a
+    # failure for a single blip. A 4xx or a wrong answer is never retried.
+    for attempt in (1, 2):
+        started = time.time()
+        try:
+            status, result = post(base + "/api/analyze",
+                                  {"jd_text": JD, "cv_text": CV}, args.timeout)
+            break
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", "ignore")[:400]
+            msg = "/api/analyze returned {} after {:.1f}s\n  {}".format(
+                exc.code, time.time() - started, body)
+            transient = exc.code >= 500 or exc.code == 429
+        except Exception as exc:  # noqa: BLE001
+            msg = "/api/analyze did not answer in {:.0f}s: {}".format(args.timeout, exc)
+            transient = True
+        if attempt == 1 and transient:
+            print("retrying once in 30s after: " + msg)
+            time.sleep(30)
+            continue
+        print("FAIL: " + msg)
         return 1
 
     elapsed = time.time() - started
@@ -127,5 +139,31 @@ def main():
     return 0
 
 
+class _Tee:
+    """Print as usual and keep a copy, so a failure can be written somewhere
+    readable without a GitHub login (see below)."""
+
+    def __init__(self, stream):
+        self.stream, self.lines = stream, []
+
+    def write(self, text):
+        self.lines.append(text)
+        return self.stream.write(text)
+
+    def flush(self):
+        self.stream.flush()
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    tee = _Tee(sys.stdout)
+    sys.stdout = tee
+    code = main()
+    sys.stdout = tee.stream
+    # Action logs need a login to read; the job summary does not (it is exposed
+    # through the public check-runs API). Three scheduled failures went
+    # undiagnosed because the reason only lived in the log. Put it here too.
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if code and summary:
+        with open(summary, "a", encoding="utf-8") as f:
+            f.write("### Production smoke test failed\n```\n" + "".join(tee.lines)[-3000:] + "\n```\n")
+    sys.exit(code)
