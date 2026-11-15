@@ -38,7 +38,10 @@ RISK_THRESHOLD = float(os.getenv("JAILBREAK_RISK_THRESHOLD", "0.5"))
 # a long job ad was never checked remotely.
 MAX_REMOTE_CHARS = 10_000
 WAKE_EVERY_SECONDS = 300
-_last_wake = 0.0
+# None = never woken. Not 0.0: time.monotonic() counts from boot, so on a
+# freshly started container (or CI runner) it can be under WAKE_EVERY_SECONDS,
+# and the very first wake was skipped. CI caught it as a flaky test.
+_last_wake = None
 
 
 async def wake_detector():
@@ -46,7 +49,7 @@ async def wake_detector():
     Analyze. Called when the page loads (it hits /health first); throttled so a
     busy page does not ping on every visit. Never raises."""
     global _last_wake
-    if not JAILBREAK_URL or time.monotonic() - _last_wake < WAKE_EVERY_SECONDS:
+    if not JAILBREAK_URL or (_last_wake is not None and time.monotonic() - _last_wake < WAKE_EVERY_SECONDS):
         return
     _last_wake = time.monotonic()
     try:

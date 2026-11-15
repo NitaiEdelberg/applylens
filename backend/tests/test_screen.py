@@ -144,12 +144,25 @@ def test_wake_pings_once_then_throttles(monkeypatch):
     pings = []
     monkeypatch.setattr(screen_mod.httpx, "AsyncClient", _client(
         lambda r: pings.append(r.url.path) or httpx.Response(200, json={"message": "hey"})))
-    monkeypatch.setattr(screen_mod, "_last_wake", 0.0)
+    monkeypatch.setattr(screen_mod, "_last_wake", None)
     asyncio.run(screen_mod.wake_detector())
     asyncio.run(screen_mod.wake_detector())
     assert pings == ["/ping"]
 
 
 def test_wake_never_raises_when_the_detector_is_down(detector_is_asleep, monkeypatch):
-    monkeypatch.setattr(screen_mod, "_last_wake", 0.0)
+    monkeypatch.setattr(screen_mod, "_last_wake", None)
     asyncio.run(screen_mod.wake_detector())  # no exception
+
+
+
+def test_first_wake_happens_even_right_after_boot(monkeypatch):
+    # time.monotonic() starts near zero on a fresh machine; the first wake must
+    # not be mistaken for "woken a moment ago".
+    pings = []
+    monkeypatch.setattr(screen_mod.httpx, "AsyncClient", _client(
+        lambda r: pings.append(1) or httpx.Response(200, json={})))
+    monkeypatch.setattr(screen_mod, "_last_wake", None)
+    monkeypatch.setattr(screen_mod.time, "monotonic", lambda: 5.0)
+    asyncio.run(screen_mod.wake_detector())
+    assert pings == [1]
