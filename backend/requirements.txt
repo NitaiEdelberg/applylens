@@ -6,16 +6,14 @@ pydantic>=2
 python-multipart
 pypdf
 python-docx
-# Deterministic, CPU-only skill-coverage signal (TF-IDF + cosine). 1.3.2 keeps
-# prebuilt wheels for Python 3.8-3.12, so it installs on the local venv and the
-# 3.11 Render box alike — no torch/transformers, ~150MB RSS, fits free tier.
-scikit-learn==1.3.2
-# ...which is compiled against the numpy 1.x ABI. On Python 3.12 pip happily
-# resolves numpy 2.x, the install succeeds, and then every import of sklearn
-# dies on a changed dtype size. That is why CI failed 17 times in a row while
-# the local venv (numpy 1.24) stayed green, and why the pin has to be explicit
-# rather than inherited from whatever sklearn asks for.
-numpy<2
+# Deterministic, CPU-only skill-coverage signal (TF-IDF + cosine) plus the
+# learned coverage model in models/coverage_lr.joblib. No torch/transformers,
+# ~150MB RSS, fits the free tier. Pinned exactly because a joblib/pickle written
+# by one scikit-learn can load as a silently wrong estimator in another: bump
+# this only together with `python evals/train_coverage_model.py`.
+# (1.3.2 was dropped: PYSEC-2024-110, and it held numpy back at 1.x.)
+scikit-learn==1.6.1
+numpy>=1.26
 # Optional accounts + cloud tracker (Circle 3). SQLAlchemy ORM runs on SQLite
 # locally (no credential) and Postgres in prod via psycopg2. passlib[bcrypt]
 # hashes passwords; pyjwt issues/verifies the auth tokens.
@@ -31,4 +29,5 @@ pyjwt
 # InMemoryVectorStore for the retrieval chain. Embeddings come from the hosted
 # Gemini API (GEMINI_API_KEY) or a local scikit-learn TF-IDF fallback; do NOT
 # add langchain-community / langchain-google-genai or anything heavy.
-langchain-core>=0.2.43,<0.4
+# 1.2.22+ fixes PYSEC-2026-2193 / PYSEC-2026-2562.
+langchain-core>=1.2.22,<2
