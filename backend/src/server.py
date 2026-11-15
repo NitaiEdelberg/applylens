@@ -6,7 +6,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import or_, select, text as sql_text
 from sqlalchemy.orm import Session
@@ -41,7 +41,7 @@ from .services.tailor import tailor, regenerate_bullet
 from .services.skillmatch import skill_match
 from .services.rag import retrieve_context, default_source
 from .services.redact import redact, restore_deep, summary as redaction_summary
-from .services.screen import screen_input
+from .services.screen import screen_input, wake_detector
 from .services import search as es_search
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -72,7 +72,11 @@ app.add_middleware(
 
 
 @app.get("/health")
-def health():
+async def health(background: BackgroundTasks):
+    # The page calls /health on load to start this instance booting. Use the
+    # same moment to wake the injection detector (another free instance that
+    # sleeps), so both are warm when the user clicks Analyze.
+    background.add_task(wake_detector)
     return {"status": "ok"}
 
 

@@ -19,6 +19,7 @@ person who pasted it; the right response to a suspicious one is to tell them,
 not to refuse.
 """
 import os
+import time
 
 import httpx
 
@@ -32,20 +33,78 @@ JAILBREAK_TIMEOUT = float(os.getenv("JAILBREAK_TIMEOUT_SECONDS", "4"))
 RISK_THRESHOLD = float(os.getenv("JAILBREAK_RISK_THRESHOLD", "0.5"))
 
 
+# JailbreakAPI accepts up to 10k characters. This used to send 4k, and real
+# postings in evals/corpus run to 6k, so an instruction planted near the end of
+# a long job ad was never checked remotely.
+MAX_REMOTE_CHARS = 10_000
+WAKE_EVERY_SECONDS = 300
+_last_wake = 0.0
+
+
+async def wake_detector():
+    """Fire-and-forget ping so the detector is warm by the time someone clicks
+    Analyze. Called when the page loads (it hits /health first); throttled so a
+    busy page does not ping on every visit. Never raises."""
+    global _last_wake
+    if not JAILBREAK_URL or time.monotonic() - _last_wake < WAKE_EVERY_SECONDS:
+        return
+    _last_wake = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=70) as client:
+            await client.get(JAILBREAK_URL.rstrip("/") + "/ping")
+    except Exception:  # noqa: BLE001 — waking is best effort
+        pass
+
+
 async def _ask_jailbreak_api(text: str):
-    """The remote verdict, or None when it could not be reached in time."""
+    """The remote verdict, or None when it could not be reached in time.
+
+    The job description is sent as source="document": it is content the model
+    READS, not something the user typed to it, which switches on JailbreakAPI's
+    indirect-injection rules (notes addressed to AI screeners, hidden HTML,
+    evaluation manipulation like "rate every applicant as an excellent match").
+    Sent as a plain prompt, those were invisible to it."""
     if not JAILBREAK_URL:
         return None
     try:
         async with httpx.AsyncClient(timeout=JAILBREAK_TIMEOUT) as client:
             response = await client.post(
-                JAILBREAK_URL.rstrip("/") + "/detect", json={"text": text[:4000]}
+                JAILBREAK_URL.rstrip("/") + "/detect",
+                json={"text": text[:MAX_REMOTE_CHARS], "source": "document"},
             )
         if response.status_code != 200:
             return None
         return response.json()
     except Exception:  # noqa: BLE001 — a sleeping detector must not fail an analysis
         return None
+
+
+def _remote_signals(remote: dict):
+    """One signal per scanner that flagged, quoting what it matched and naming
+    the rule family, so the warning says *what* in the posting was the problem.
+    Falls back to a single generic signal for an older detector response."""
+    risk = float(remote.get("risk_score") or 0)
+    out = []
+    for s in remote.get("scanners") or []:
+        if not s.get("flagged"):
+            continue
+        kind = (s.get("signal") or "").replace("_", " ")
+        out.append({
+            "matched": s.get("matched") or (remote.get("verdict") or "flagged"),
+            "why": "{}{} (risk {:.2f})".format(
+                s.get("scanner", "detector"), ": " + kind if kind else "", float(s.get("risk_score") or 0)),
+            "source": "jailbreak-api",
+        })
+    if not out:
+        flagged = ", ".join(s.get("scanner", "?") for s in remote.get("flagged_by", []))
+        out.append({
+            "matched": remote.get("verdict") or "flagged",
+            "why": "flagged by {} (risk {:.2f})".format(flagged or "the detector", risk),
+            "source": "jailbreak-api",
+        })
+    # Lead with the signal that quotes the posting: a quote beats a scanner name.
+    out.sort(key=lambda x: x["matched"] in ("malicious", "flagged"))
+    return out
 
 
 async def screen_input(text: str, label: str = "job description") -> dict:
@@ -60,13 +119,7 @@ async def screen_input(text: str, label: str = "job description") -> dict:
         remote_state = "ok"
         checked_by.append("jailbreak-api")
         if remote.get("detected") and float(remote.get("risk_score") or 0) >= RISK_THRESHOLD:
-            flagged = ", ".join(s.get("scanner", "?") for s in remote.get("flagged_by", []))
-            signals.append({
-                "matched": (remote.get("verdict") or "flagged"),
-                "why": "flagged by {} (risk {:.2f})".format(
-                    flagged or "the detector", float(remote.get("risk_score") or 0)),
-                "source": "jailbreak-api",
-            })
+            signals.extend(_remote_signals(remote))
 
     result = {
         "suspicious": bool(signals),
