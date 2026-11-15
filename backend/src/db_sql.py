@@ -29,13 +29,19 @@ load_dotenv()  # idempotent; picks up DATABASE_URL / JWT_SECRET from backend/.en
 def _database_url() -> str:
     """Resolve the DB URL. Defaults to a local SQLite file so the app runs with
     no credential for local dev. Normalizes the legacy `postgres://` scheme
-    (used by some providers) to the `postgresql://` SQLAlchemy expects.
+    (used by some providers) and pins the psycopg2 driver explicitly.
     """
     url = os.getenv("DATABASE_URL", "").strip()
     if not url:
         return "sqlite:///./applylens.db"
     if url.startswith("postgres://"):
         url = "postgresql://" + url[len("postgres://"):]
+    # Name the driver. SQLAlchemy 2.1 changed what a bare "postgresql://" means
+    # (psycopg2 -> psycopg 3), and requirements install psycopg2-binary, so the
+    # first clean build after the upgrade crashed at import with "No module
+    # named 'psycopg'" on Render while every local run (SQLite) was fine.
+    if url.startswith("postgresql://"):
+        url = "postgresql+psycopg2://" + url[len("postgresql://"):]
     return url
 
 
