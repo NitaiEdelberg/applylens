@@ -1885,3 +1885,25 @@ body {
   .agentrun__step { grid-template-columns: 1fr; }
   .agentrun__obs, .agentrun__thought { grid-column: 1; }
 }
+
+/* The badge is a button now (it opens the Evals tab). */
+button.trustbadge { cursor: pointer; font-family: inherit; }
+button.trustbadge:hover { background: rgba(74, 222, 128, 0.2); }
+
+/* ---- Evals tab ---- */
+.evals { display: flex; flex-direction: column; gap: var(--sp-4); }
+.evals__title { margin: 0 0 var(--sp-2); font-size: 20px; }
+.evals__intro p { margin: 0; color: var(--text-dim); line-height: 1.6; }
+.evals__question { margin: 0 0 var(--sp-4); color: var(--text-dim); }
+.evals__tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-3); }
+.evals__tile--ok .tile__num { color: var(--success); }
+.evals__tile--mid .tile__num { color: var(--warn); }
+.evals__tile--bad .tile__num { color: var(--danger); }
+.evals__how { margin: var(--sp-4) 0 0; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+.evals__link { display: inline-block; margin-top: var(--sp-3); font-size: 13px; color: var(--accent-2); }
+.evals__details { margin-top: var(--sp-4); font-size: 13px; }
+.evals__details summary { cursor: pointer; color: var(--accent-2); }
+.evals__tablewrap { overflow-x: auto; margin-top: var(--sp-3); }
+.evals__table { width: 100%; border-collapse: collapse; }
+.evals__table th, .evals__table td { text-align: left; padding: 6px var(--sp-3); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.evals__table th { color: var(--text-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }

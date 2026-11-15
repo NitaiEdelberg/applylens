@@ -17,6 +17,7 @@ import RunTrace from './components/RunTrace.jsx'
 import InputSafety from './components/InputSafety.jsx'
 import Tracker from './components/Tracker.jsx'
 import TrustPanel, { TrustBadge } from './components/TrustPanel.jsx'
+import EvalsPage from './components/EvalsPage.jsx'
 import AuthPanel from './components/AuthPanel.jsx'
 import Footer from './components/Footer.jsx'
 import { loadApps, saveApp, updateStatus, deleteApp } from './tracker.js'
@@ -514,7 +515,7 @@ export default function App() {
           </p>
         </div>
         <div className="header__slot">
-          <TrustBadge />
+          <TrustBadge onOpen={() => setView('evals')} />
           <StatusDot status={serverStatus} />
           {token ? (
             <div className="auth">
@@ -562,9 +563,20 @@ export default function App() {
         >
           Tracker{apps.length ? ` (${apps.length})` : ''}
         </button>
+        <button
+          type="button"
+          className={`tab${view === 'evals' ? ' tab--active' : ''}`}
+          onClick={() => setView('evals')}
+        >
+          Evals
+        </button>
       </nav>
 
-      {view === 'analyze' ? (
+      {view === 'evals' ? (
+        <main className="main main--single">
+          <EvalsPage />
+        </main>
+      ) : view === 'analyze' ? (
         <main className="main">
           <section className="panel" aria-label="Inputs">
             <div className="card">
@@ -695,7 +707,7 @@ export default function App() {
                 <InputSafety screening={result.screening} privacy={result.privacy} />
                 <RagNote rag={result.rag} />
                 <GuardrailPanel tailor={result.tailor} jdText={analyzedJd} cvText={analyzedCv} careerText={analyzedCareer} />
-                <TrustPanel />
+                <TrustPanel onOpen={() => setView('evals')} />
                 <FitGauge fit={result.fit} />
                 <SkillCoverage skillMatch={result.skill_match} />
                 <JobCard job={result.job} />

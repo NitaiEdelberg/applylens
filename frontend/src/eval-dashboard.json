@@ -1,0 +1,312 @@
+{
+  "sections": [
+    {
+      "id": "grounding",
+      "title": "Grounding guardrail",
+      "question": "Does it catch claims your CV does not support, without flagging true ones?",
+      "headline": [
+        {
+          "label": "accuracy",
+          "value": 0.979,
+          "kind": "pct"
+        },
+        {
+          "label": "fabrications missed",
+          "value": 0,
+          "of": 95,
+          "kind": "count",
+          "good": "low"
+        },
+        {
+          "label": "true claims wrongly flagged",
+          "value": 2,
+          "of": 95,
+          "kind": "count",
+          "good": "low"
+        },
+        {
+          "label": "labelled statements",
+          "value": 95,
+          "kind": "count"
+        }
+      ],
+      "how": "95 hand-labelled CV statements across 23 kinds of fabrication and look-alike truth. Prompt v1. CI replays the recorded model answers on every push, so a prompt or parsing change that breaks the guardrail fails the build without spending tokens.",
+      "table": {
+        "columns": [
+          "kind",
+          "n",
+          "accuracy",
+          "missed",
+          "false flags"
+        ],
+        "rows": [
+          [
+            "original",
+            33,
+            0.97,
+            0,
+            1
+          ],
+          [
+            "plain",
+            6,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "from_the_jd",
+            5,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "robustness_hebrew",
+            5,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "robustness_pdf",
+            5,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "adjacent_tool",
+            4,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "education",
+            4,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "half_true",
+            4,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "inflated_role",
+            4,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "invented_metric",
+            4,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "embellishment",
+            3,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "wrong_employer",
+            3,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "category_from_tool+reviewed",
+            2,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "reframed",
+            2,
+            0.5,
+            0,
+            1
+          ],
+          [
+            "reframed+reviewed",
+            2,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "robustness_injection",
+            2,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "category_from_tool",
+            1,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "inflated_tenure",
+            1,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "metric_in_cv",
+            1,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "unsupported_category",
+            1,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "vague",
+            1,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "vague_but_true",
+            1,
+            1.0,
+            0,
+            0
+          ],
+          [
+            "wrong_role",
+            1,
+            1.0,
+            0,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "id": "human",
+      "title": "Checked against a person",
+      "question": "Are the labels themselves right, and does the guardrail agree with a human?",
+      "headline": [
+        {
+          "label": "guardrail vs human agreement",
+          "value": 0.897,
+          "kind": "pct"
+        },
+        {
+          "label": "Cohen's kappa",
+          "value": 0.79,
+          "kind": "num"
+        },
+        {
+          "label": "dataset labels vs human",
+          "value": 0.931,
+          "kind": "pct"
+        },
+        {
+          "label": "statements a person labelled",
+          "value": 58,
+          "kind": "count"
+        }
+      ],
+      "how": "A person re-labelled a sample blind. Measuring the guardrail only against labels the same author wrote would grade it on agreeing with its author; this measures it against someone checking. Where they disagree, the guardrail missed 4 fabrications and wrongly flagged 2 true claims."
+    },
+    {
+      "id": "coverage",
+      "title": "Skill coverage signal (no LLM)",
+      "question": "Which job requirements does the CV actually cover, checked by rules instead of a model?",
+      "headline": [
+        {
+          "label": "precision",
+          "value": 1.0,
+          "kind": "pct"
+        },
+        {
+          "label": "recall",
+          "value": 0.976,
+          "kind": "pct"
+        },
+        {
+          "label": "baseline recall (before)",
+          "value": 0.561,
+          "kind": "pct",
+          "neutral": true
+        },
+        {
+          "label": "labelled requirements",
+          "value": 65,
+          "kind": "count"
+        }
+      ],
+      "how": "A deterministic second opinion next to the model's fit score, recomputed on every CI run. A trained classifier was also tried: on CVs it never saw it scored F1 0.0 against the rule's 0.26, so the rule stayed. That result is kept here on purpose."
+    },
+    {
+      "id": "retrieval",
+      "title": "Career-history retrieval (RAG)",
+      "question": "When you paste a longer history, does it pull the right passages for this job?",
+      "headline": [
+        {
+          "label": "recall@4",
+          "value": 0.938,
+          "kind": "pct"
+        },
+        {
+          "label": "MRR",
+          "value": 1.0,
+          "kind": "num"
+        },
+        {
+          "label": "cases",
+          "value": 8,
+          "kind": "count"
+        }
+      ],
+      "how": "Measured on the deterministic TFIDF path that runs without any API key, so CI can gate on it. A hosted embedder is used in production when a key is set."
+    },
+    {
+      "id": "injection",
+      "title": "Prompt-injection screening",
+      "question": "Does a job ad that talks to the AI get caught?",
+      "headline": [
+        {
+          "label": "planted instructions caught in real job ads",
+          "value": 1.0,
+          "kind": "pct"
+        },
+        {
+          "label": "clean real job ads flagged",
+          "value": 0,
+          "of": 45,
+          "kind": "count",
+          "good": "low"
+        }
+      ],
+      "how": "Job descriptions are screened by JailbreakAPI as untrusted documents. Its own CI measures 1,485 planted instructions across 15 real postings and 45 clean ones.",
+      "link": {
+        "href": "https://jailbreak-api-frontend.onrender.com/redteam.html",
+        "label": "JailbreakAPI red-team scorecard"
+      }
+    }
+  ]
+}

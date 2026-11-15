@@ -64,6 +64,7 @@ def score(predictions, labels):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--verbose", action="store_true", help="list every wrong case")
+    ap.add_argument("--json", help="also write the scores here (used by build_dashboard.py)")
     args = ap.parse_args()
 
     cvs = json.load(open(os.path.join(HERE, "skillmatch_cvs.json"), encoding="utf-8"))
@@ -93,6 +94,10 @@ def main():
             if pred != c["covered"]:
                 kind = "false positive" if pred else "false negative"
                 print(f"  [{kind}] {c['cv_key']}: {c['requirement']!r}  ({c['why']})")
+
+    if args.json:
+        with open(args.json, "w", encoding="utf-8") as f:
+            json.dump({"n": len(cases), "covered": sum(labels), "systems": results}, f, indent=2)
 
     cur = results["current"]
     failed = []

@@ -55,6 +55,12 @@ jobs:
             echo "  GROQ_API_KEY=... python evals/run_evals.py --record"
           fi
 
+      # The badge and the Evals tab are generated from the reports above. If a
+      # report changes and the numbers the app shows do not, fail: the badge
+      # once said "100%" from a stale file while the eval said 97.9%.
+      - name: UI numbers match the eval reports
+        run: python evals/build_dashboard.py --check
+
   frontend:
     runs-on: ubuntu-latest
     steps:
